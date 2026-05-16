@@ -183,6 +183,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _SettingsCard(
               children: [
                 _ActionItem(
+                  label: 'Ekstre İçe Aktar',
+                  icon: Icons.upload_file_outlined,
+                  color: AppColors.accent,
+                  onTap: () => Navigator.pushNamed(context, '/import'),
+                ),
+                const _Separator(),
+                _ActionItem(
+                  label: 'Geçmiş Ayları Görüntüle',
+                  icon: Icons.archive_outlined,
+                  color: AppColors.accent,
+                  onTap: () => Navigator.pushNamed(context, '/archive'),
+                ),
+                const _Separator(),
+                _ActionItem(
                   label: 'Tüm Verileri Sıfırla',
                   icon: Icons.delete_forever,
                   color: AppColors.danger,

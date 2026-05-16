@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/agents/orchestrator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/budget.dart';
 import '../../core/models/transaction.dart';
@@ -22,6 +23,13 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   Widget build(BuildContext context) {
     final budgetsAsync = ref.watch(currentMonthBudgetsProvider);
     final summaryAsync = ref.watch(monthlySummaryProvider);
+
+    // Gemini analizi bittiğinde kategoriler güncellenmiş olabilir — bütçeyi yenile
+    ref.listen(orchestratorProvider, (prev, next) {
+      if (next is OrchestratorStateIdle && prev != null && prev.isRunning) {
+        _refresh();
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.primary,

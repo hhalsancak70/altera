@@ -115,11 +115,13 @@ SADECE geçerli JSON döndür, başka hiçbir şey yazma:
         responseText = response.text;
         break;
       } catch (e) {
+        final errStr = e.toString();
         if (attempt == AppConstants.kGeminiMaxRetries - 1) {
-          throw GeminiException('Gemini API hatası: $e');
+          throw GeminiException(_summarizeError(errStr));
         }
-        // Kısa bekleme sonrası tekrar dene
-        await Future.delayed(const Duration(milliseconds: 500));
+        // API'nin belirttiği retry süresini parse et; yoksa varsayılan bekle
+        final delayMs = _retryDelayMs(errStr);
+        await Future.delayed(Duration(milliseconds: delayMs));
       }
     }
 
@@ -267,6 +269,42 @@ SADECE geçerli JSON döndür (bulamazsan null döndür):
     } catch (_) {
       return null;
     }
+  }
+
+  /// Hata mesajından "retry in X.Xs" süresini parse eder (ms cinsinden).
+  static int _retryDelayMs(String error) {
+    final match = RegExp(r'retry in (\d+\.?\d*)').firstMatch(error);
+    if (match != null) {
+      final seconds = double.tryParse(match.group(1) ?? '') ?? 10.0;
+      return ((seconds + 2) * 1000).toInt(); // 2s buffer
+    }
+    return AppConstants.kRateLimitDelayMs;
+  }
+
+  /// Uzun API hata metnini kısa, Türkçe özete dönüştürür.
+  static String _summarizeError(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('quota') ||
+        lower.contains('exceeded') ||
+        lower.contains('limit')) {
+      final retryMatch = RegExp(r'retry in (\d+\.?\d*)').firstMatch(raw);
+      if (retryMatch != null) {
+        return 'Gemini kota aşıldı (${retryMatch.group(1)}s sonra tekrar dene)';
+      }
+      return 'Gemini API kota sınırı aşıldı';
+    }
+    if (lower.contains('api key') || lower.contains('invalid key')) {
+      return 'Gemini API anahtarı geçersiz';
+    }
+    if (lower.contains('network') || lower.contains('socket')) {
+      return 'Ağ bağlantısı hatası';
+    }
+    // URL'leri temizle ve metni kısalt
+    final cleaned = raw
+        .replaceAll(RegExp(r'https?://\S+'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return cleaned.length > 100 ? '${cleaned.substring(0, 100)}...' : cleaned;
   }
 
   /// JSON yanıtından { } bloğunu çıkarır - bazen Gemini ekstra metin ekler

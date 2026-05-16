@@ -118,9 +118,14 @@ class AnalysisAgent {
       } catch (e) {
         // Tek bir işlem başarısız olsa bile devam et
         failedCount++;
+        // Hata mesajını kısa tut (GeminiException zaten özetlenmiş gelir)
+        final errMsg = e is GeminiException
+            ? e.message
+            : e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
+        final short = errMsg.length > 80 ? '${errMsg.substring(0, 80)}…' : errMsg;
         logCallback(
           'analysis',
-          '"${tx.description}" analiz edilemedi: $e',
+          '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
           LogLevel.warning,
         );
       }

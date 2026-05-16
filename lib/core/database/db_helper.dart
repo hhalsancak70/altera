@@ -1,5 +1,8 @@
 // ALTERA SQLite veritabanı yöneticisi - tüm kalıcı veri burada
-import 'package:sqflite/sqflite.dart' hide Transaction;
+import 'dart:convert';
+import 'dart:math';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart' hide Transaction;
 import 'package:path/path.dart';
 
 import '../constants/app_constants.dart';
@@ -35,12 +38,78 @@ class DbHelper {
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, AppConstants.kDatabaseName);
+    final encryptionKey = await _getOrCreateEncryptionKey();
 
-    return openDatabase(
-      path,
-      version: AppConstants.kDatabaseVersion,
-      onCreate: _onCreate,
+    try {
+      return await openDatabase(
+        path,
+        version: AppConstants.kDatabaseVersion,
+        password: encryptionKey,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      );
+    } catch (e) {
+      // Şifresiz (eski) DB varsa silinip şifreli yeniden oluşturulur.
+      // "SQL logic error" SQLCipher'ın yanlış/eksik anahtar mesajıdır.
+      if (e.toString().contains('SQL logic error')) {
+        await deleteDatabase(path);
+        return openDatabase(
+          path,
+          version: AppConstants.kDatabaseVersion,
+          password: encryptionKey,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  /// Veritabanı şifreleme anahtarını güvenli depodan okur.
+  /// İlk çalıştırmada rastgele 256-bit anahtar üretir ve kaydeder.
+  Future<String> _getOrCreateEncryptionKey() async {
+    const storage = FlutterSecureStorage(
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      iOptions: IOSOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+      ),
     );
+
+    const keyName = 'altera_db_encryption_key';
+    String? existingKey = await storage.read(key: keyName);
+
+    if (existingKey == null) {
+      // İlk kurulum: kriptografik olarak güvenli rastgele 32-byte anahtar üret
+      final random = Random.secure();
+      final keyBytes = List<int>.generate(32, (_) => random.nextInt(256));
+      existingKey = base64Url.encode(keyBytes);
+      await storage.write(key: keyName, value: existingKey);
+    }
+
+    return existingKey;
+  }
+
+  /// Şema yükseltmesi - yeni sütun veya tablo eklendiğinde çağrılır
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // v2: monthly_archives tablosu eklendi
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS monthly_archives (
+          id              TEXT PRIMARY KEY,
+          year            INTEGER NOT NULL,
+          month           INTEGER NOT NULL,
+          total_income    REAL NOT NULL DEFAULT 0,
+          total_expense   REAL NOT NULL DEFAULT 0,
+          total_savings   REAL NOT NULL DEFAULT 0,
+          category_json   TEXT NOT NULL,
+          budget_json     TEXT NOT NULL,
+          transaction_count INTEGER NOT NULL,
+          top_category    TEXT,
+          archived_at     TEXT NOT NULL,
+          UNIQUE(year, month)
+        )
+      ''');
+    }
   }
 
   /// Veritabanı ilk kez oluşturulduğunda çağrılır
@@ -96,6 +165,24 @@ class DbHelper {
         action TEXT NOT NULL,
         date TEXT NOT NULL,
         ai_reason TEXT
+      )
+    ''');
+
+    // Aylık istatistik arşivi - değiştirilemez geçmiş kayıtlar
+    await db.execute('''
+      CREATE TABLE monthly_archives (
+        id              TEXT PRIMARY KEY,
+        year            INTEGER NOT NULL,
+        month           INTEGER NOT NULL,
+        total_income    REAL NOT NULL DEFAULT 0,
+        total_expense   REAL NOT NULL DEFAULT 0,
+        total_savings   REAL NOT NULL DEFAULT 0,
+        category_json   TEXT NOT NULL,
+        budget_json     TEXT NOT NULL,
+        transaction_count INTEGER NOT NULL,
+        top_category    TEXT,
+        archived_at     TEXT NOT NULL,
+        UNIQUE(year, month)
       )
     ''');
 
@@ -193,6 +280,45 @@ class DbHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  /// ID'ye göre tek işlem döndürür
+  Future<Transaction?> getTransactionById(String id) async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return _txFromMap(maps.first);
+  }
+
+  /// İşlem günceller
+  Future<void> updateTransaction(Transaction tx) async {
+    final db = await database;
+    await db.update(
+      'transactions',
+      {
+        'description': tx.description,
+        'amount': tx.amount,
+        'date': tx.date.toIso8601String(),
+        'category': tx.category.name,
+        'type': tx.type.name,
+        'ai_reason': tx.aiReason,
+        'is_analyzed': tx.isAnalyzed ? 1 : 0,
+        'source': tx.source,
+      },
+      where: 'id = ?',
+      whereArgs: [tx.id],
+    );
+  }
+
+  /// İşlem siler
+  Future<void> deleteTransaction(String id) async {
+    final db = await database;
+    await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 
   /// Belirli bir ID'nin DB'de var olup olmadığını kontrol eder
@@ -478,6 +604,55 @@ class DbHelper {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // AYLIK ARŞİV
+  // ─────────────────────────────────────────────────────────────
+
+  /// Aylık istatistik arşivi ekler (bir ay sadece bir kez arşivlenir)
+  Future<void> insertMonthlyArchive(Map<String, dynamic> archive) async {
+    final db = await database;
+    await db.insert(
+      'monthly_archives',
+      archive,
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  /// Tüm arşivleri döndürür (en yeni başta)
+  Future<List<Map<String, dynamic>>> getMonthlyArchives() async {
+    final db = await database;
+    return db.query(
+      'monthly_archives',
+      orderBy: 'year DESC, month DESC',
+    );
+  }
+
+  /// Belirli yıl-ay için arşiv kaydı var mı?
+  Future<bool> monthlyArchiveExists(int year, int month) async {
+    final db = await database;
+    final result = await db.query(
+      'monthly_archives',
+      where: 'year = ? AND month = ?',
+      whereArgs: [year, month],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  /// Belirli bir ay için işlemleri döndürür (arşivleme için)
+  Future<List<Transaction>> getTransactionsForMonth(DateTime month) async {
+    final db = await database;
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 1);
+    final maps = await db.query(
+      'transactions',
+      where: 'date >= ? AND date < ?',
+      whereArgs: [start.toIso8601String(), end.toIso8601String()],
+      orderBy: 'date ASC',
+    );
+    return maps.map(_txFromMap).toList();
+  }
+
   /// Tüm veritabanını sıfırlar (settings ekranında kullanılır)
   Future<void> clearAllData() async {
     final db = await database;
@@ -485,5 +660,6 @@ class DbHelper {
     await db.delete('budgets');
     await db.delete('agent_logs');
     await db.delete('investment_records');
+    await db.delete('monthly_archives');
   }
 }

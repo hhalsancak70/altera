@@ -15,7 +15,11 @@ import 'models/budget.dart';
 import 'models/transaction.dart';
 import 'models/investment_fund.dart';
 import 'models/user_profile.dart';
-import 'services/bank_mock_service.dart';
+import 'models/monthly_archive.dart';
+import 'repositories/transaction_repository.dart';
+import 'services/cycle_service.dart';
+import 'services/import_service.dart';
+import 'services/investment_fund_service.dart';
 import 'services/gemini_service.dart';
 import 'services/notification_service.dart';
 
@@ -26,8 +30,26 @@ import 'services/notification_service.dart';
 /// SQLite veritabanı singleton'ı
 final dbHelperProvider = Provider<DbHelper>((ref) => DbHelper());
 
-/// Banka mock servisi
-final bankMockServiceProvider = Provider<BankMockService>((ref) => BankMockService());
+/// İşlem repository'si — CRUD için tek yetkili kaynak
+final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
+  return TransactionRepository(db: ref.read(dbHelperProvider));
+});
+
+/// Yatırım fonu servisi
+final investmentFundServiceProvider =
+    Provider<InvestmentFundService>((ref) => InvestmentFundService());
+
+/// Import servisi — PDF/Excel içe aktarma
+final importServiceProvider =
+    Provider<ImportService>((ref) => ImportService());
+
+/// Aylık döngü servisi
+final cycleServiceProvider = Provider<CycleService>((ref) {
+  return CycleService(
+    db: ref.read(dbHelperProvider),
+    notifications: ref.read(notificationServiceProvider),
+  );
+});
 
 /// Bildirim servisi (zaten initialize edilmiş)
 final notificationServiceProvider =
@@ -53,7 +75,6 @@ final userProfileProvider = FutureProvider<UserProfile>((ref) async {
 /// DataCollectionAgent instance'ı
 final dataCollectionAgentProvider = Provider<DataCollectionAgent>((ref) {
   return DataCollectionAgent(
-    bankService: ref.read(bankMockServiceProvider),
     dbHelper: ref.read(dbHelperProvider),
   );
 });
@@ -79,7 +100,7 @@ final actionAgentProvider = Provider<ActionAgent?>((ref) {
       dbHelper: ref.read(dbHelperProvider),
       gemini: gemini,
       notifications: ref.read(notificationServiceProvider),
-      bankService: ref.read(bankMockServiceProvider),
+      fundService: ref.read(investmentFundServiceProvider),
     ),
     loading: () => null,
     error: (_, __) => null,
@@ -87,27 +108,29 @@ final actionAgentProvider = Provider<ActionAgent?>((ref) {
 });
 
 /// Orchestrator - StateNotifier (durumu takip eder)
+///
+/// NOT: analysisAgentProvider / actionAgentProvider WATCH edilmez.
+/// Bunun yerine her döngüde ref.read ile güncel ajan okunur.
+/// Bu sayede Gemini yüklendiğinde orchestrator yeniden yaratılmaz
+/// ve timer/state sıfırlanmaz.
 final orchestratorProvider =
     StateNotifierProvider<Orchestrator, OrchestratorState>((ref) {
-  final analysisAgent = ref.watch(analysisAgentProvider);
-  final actionAgent = ref.watch(actionAgentProvider);
+  final db = ref.read(dbHelperProvider);
 
   return Orchestrator(
     dataAgent: ref.read(dataCollectionAgentProvider),
-    analysisAgent: analysisAgent ??
-        AnalysisAgent(
-          // Fallback: Gemini yoksa analiz ajanı devre dışı
-          gemini: GeminiService.withKey(''),
-          dbHelper: ref.read(dbHelperProvider),
-        ),
-    actionAgent: actionAgent ??
+    dbHelper: db,
+    getAnalysisAgent: () =>
+        ref.read(analysisAgentProvider) ??
+        AnalysisAgent(gemini: GeminiService.withKey(''), dbHelper: db),
+    getActionAgent: () =>
+        ref.read(actionAgentProvider) ??
         ActionAgent(
-          dbHelper: ref.read(dbHelperProvider),
+          dbHelper: db,
           gemini: GeminiService.withKey(''),
           notifications: ref.read(notificationServiceProvider),
-          bankService: ref.read(bankMockServiceProvider),
+          fundService: ref.read(investmentFundServiceProvider),
         ),
-    dbHelper: ref.read(dbHelperProvider),
   );
 });
 
@@ -175,13 +198,19 @@ final monthlySummaryProvider = FutureProvider.autoDispose<
 /// Yatırım fonları listesi
 final investmentFundsProvider =
     FutureProvider.autoDispose<List<InvestmentFund>>((ref) async {
-  return ref.read(bankMockServiceProvider).fetchInvestmentFunds();
+  return ref.read(investmentFundServiceProvider).fetchInvestmentFunds();
 });
 
 /// Yatırım geçmişi
 final investmentHistoryProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   return ref.read(dbHelperProvider).getInvestmentHistory();
+});
+
+/// Aylık arşivler listesi
+final monthlyArchivesProvider =
+    FutureProvider.autoDispose<List<MonthlyArchive>>((ref) async {
+  return ref.read(cycleServiceProvider).getAllArchives();
 });
 
 /// Tüm işlemler (filtrelenebilir)

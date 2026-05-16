@@ -14,13 +14,11 @@ import 'action_agent.dart';
 // ORCHESTRATOR DURUM SINIFI
 // ─────────────────────────────────────────────────────────────
 
-/// Orchestrator'ın anlık çalışma durumu - sealed class ile tip güvenliği
 sealed class OrchestratorState {
   const OrchestratorState();
   bool get isRunning => this is! OrchestratorStateIdle;
 }
 
-/// Ajan bekleme durumu
 class OrchestratorStateIdle extends OrchestratorState {
   final int? lastCollectedCount;
   final int? lastAnalyzedCount;
@@ -35,26 +33,20 @@ class OrchestratorStateIdle extends OrchestratorState {
   });
 }
 
-/// Veri toplama ajanı çalışıyor
 class OrchestratorStateCollecting extends OrchestratorState {
   const OrchestratorStateCollecting();
 }
 
-/// Gemini analiz ajanı çalışıyor
 class OrchestratorStateAnalyzing extends OrchestratorState {
   final int collectedCount;
-
   const OrchestratorStateAnalyzing({required this.collectedCount});
 }
 
-/// Aksiyon ajanı çalışıyor
 class OrchestratorStateActing extends OrchestratorState {
   final int analyzedCount;
-
   const OrchestratorStateActing({required this.analyzedCount});
 }
 
-/// Döngü tamamlandı - kısa süre gösterilir, sonra idle'a döner
 class OrchestratorStateCompleted extends OrchestratorState {
   final int collectedCount;
   final int analyzedCount;
@@ -67,10 +59,8 @@ class OrchestratorStateCompleted extends OrchestratorState {
   });
 }
 
-/// Hata durumu
 class OrchestratorStateError extends OrchestratorState {
   final String message;
-
   const OrchestratorStateError({required this.message});
 }
 
@@ -80,42 +70,35 @@ class OrchestratorStateError extends OrchestratorState {
 
 /// ALTERA Baş Ajan: Orchestrator
 ///
-/// LangGraph'tan ilham alan durum makinesi.
-/// 3 ajanı sıralı olarak çalıştırır, her adımı loglar.
+/// Akış: IDLE → COLLECTING → ANALYZING → ACTING → IDLE
 ///
-/// Akış:
-///   IDLE → COLLECTING → ANALYZING → ACTING → IDLE
-///
-/// Riverpod StateNotifier ile UI'ya anlık durum iletir.
-/// Arka planda döngü çalıştırır (her kAgentCycleIntervalSeconds saniyede).
-///
-/// Örnek kullanım:
-/// ```dart
-/// final orchestrator = ref.read(orchestratorProvider.notifier);
-/// await orchestrator.runOnce(); // Manuel tetikleme
-/// orchestrator.startAutoMode(); // Otomatik döngü
-/// ```
+/// Ajan örnekleri callback ile sağlanır — Gemini yüklendiğinde
+/// orchestrator yeniden yaratılmaz, her döngüde güncel ajanı okur.
 class Orchestrator extends StateNotifier<OrchestratorState> {
   final DataCollectionAgent _dataAgent;
-  final AnalysisAgent _analysisAgent;
-  final ActionAgent _actionAgent;
   final DbHelper _dbHelper;
+
+  /// Her döngüde güncel AnalysisAgent'ı döndüren callback
+  final AnalysisAgent Function() _getAnalysisAgent;
+
+  /// Her döngüde güncel ActionAgent'ı döndüren callback
+  final ActionAgent Function() _getActionAgent;
 
   Timer? _autoTimer;
   final _uuid = const Uuid();
 
   Orchestrator({
     required DataCollectionAgent dataAgent,
-    required AnalysisAgent analysisAgent,
-    required ActionAgent actionAgent,
     required DbHelper dbHelper,
+    required AnalysisAgent Function() getAnalysisAgent,
+    required ActionAgent Function() getActionAgent,
   })  : _dataAgent = dataAgent,
-        _analysisAgent = analysisAgent,
-        _actionAgent = actionAgent,
         _dbHelper = dbHelper,
+        _getAnalysisAgent = getAnalysisAgent,
+        _getActionAgent = getActionAgent,
         super(const OrchestratorStateIdle());
 
-  /// Tek seferlik ajan döngüsü - UI butonundan veya otomatik moddan çağrılır
+  /// Tek seferlik ajan döngüsü
   Future<void> runOnce() async {
     if (state.isRunning) {
       _log('orchestrator', 'Döngü zaten çalışıyor, atlandı', LogLevel.warning);
@@ -144,9 +127,8 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
 
     late AnalysisResult analysisResult;
     try {
-      analysisResult = await _analysisAgent.run(logCallback: _log);
+      analysisResult = await _getAnalysisAgent().run(logCallback: _log);
     } catch (e) {
-      // Analiz hatası tolere edilebilir - aksiyon aşamasına geç
       _log('orchestrator', 'Analiz hatası: $e', LogLevel.error);
       analysisResult = const AnalysisResult(
         analyzedCount: 0,
@@ -157,12 +139,11 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
     }
 
     // ─── AŞAMA 3: AKSİYONLAR ───
-    state = OrchestratorStateActing(
-        analyzedCount: analysisResult.analyzedCount);
+    state = OrchestratorStateActing(analyzedCount: analysisResult.analyzedCount);
 
     late ActionResult actionResult;
     try {
-      actionResult = await _actionAgent.run(logCallback: _log);
+      actionResult = await _getActionAgent().run(logCallback: _log);
     } catch (e) {
       _log('orchestrator', 'Aksiyon hatası: $e', LogLevel.error);
       actionResult = const ActionResult(actionsPerformed: [], durationMs: 0);
@@ -182,7 +163,6 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
       LogLevel.success,
     );
 
-    // Kısa süre tamamlandı ekranını göster, sonra idle'a dön
     await Future.delayed(
         Duration(milliseconds: AppConstants.kAgentCompletedDelayMs));
 
@@ -196,7 +176,6 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
     }
   }
 
-  /// Otomatik döngüyü başlatır - her kAgentCycleIntervalSeconds saniyede çalışır
   void startAutoMode() {
     _autoTimer?.cancel();
     _autoTimer = Timer.periodic(
@@ -206,7 +185,6 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
     _log('orchestrator', 'Otomatik mod aktif', LogLevel.info);
   }
 
-  /// Otomatik döngüyü durdurur
   void stopAutoMode() {
     _autoTimer?.cancel();
     _autoTimer = null;
@@ -215,7 +193,6 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
 
   bool get isAutoModeActive => _autoTimer?.isActive ?? false;
 
-  /// Her ajan aksiyonunu veritabanına kaydeden internal metot
   void _log(String agentStr, String message, LogLevel level) {
     final agentType = AgentType.values.firstWhere(
       (a) => a.shortName == agentStr,

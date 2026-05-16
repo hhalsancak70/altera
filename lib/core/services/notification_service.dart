@@ -158,6 +158,38 @@ class NotificationService {
     );
   }
 
+  /// Aylık döngü tamamlandığında özet bildirim gönderir
+  Future<void> showMonthlySummary({
+    required DateTime month,
+    required double totalSavings,
+    String? topCategory,
+  }) async {
+    const monthNames = [
+      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+    ];
+    final monthName = monthNames[month.month];
+    final savingsText = totalSavings >= 0
+        ? '${totalSavings.toStringAsFixed(0)} TL tasarruf ettin!'
+        : '${totalSavings.abs().toStringAsFixed(0)} TL açık verin.';
+
+    final body = topCategory != null
+        ? '$savingsText En çok: $topCategory'
+        : savingsText;
+
+    await _plugin.show(
+      4000,
+      '$monthName ayı arşivlendi',
+      body,
+      _buildDetails(
+        channelId: _channelAgent,
+        channelName: 'Ajan Aksiyonları',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+      ),
+    );
+  }
+
   NotificationDetails _buildDetails({
     required String channelId,
     required String channelName,

@@ -51,119 +51,125 @@ class _LogEntryCardState extends State<LogEntryCard> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(color: _levelColor, width: 3),
-          top: const BorderSide(color: Color(0xFF1F2937), width: 1),
-          right: const BorderSide(color: Color(0xFF1F2937), width: 1),
-          bottom: const BorderSide(color: Color(0xFF1F2937), width: 1),
-        ),
+        border: Border.all(color: const Color(0xFF1F2937), width: 1),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Üst satır: ajan rozeti + zaman + süre
-            Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _agentBadgeColor.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 3, color: _levelColor),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.entry.isGeminiLog) ...[
-                        const Text('✨',
-                            style: TextStyle(fontSize: 10)),
-                        const SizedBox(width: 3),
-                      ],
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _agentBadgeColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (widget.entry.isGeminiLog) ...[
+                                  const Text('✨',
+                                      style: TextStyle(fontSize: 10)),
+                                  const SizedBox(width: 3),
+                                ],
+                                Text(
+                                  widget.entry.agent.displayNameTr,
+                                  style: TextStyle(
+                                    color: _agentBadgeColor,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            _formatTime(widget.entry.timestamp),
+                            style: const TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 10,
+                            ),
+                          ),
+                          if (widget.entry.durationMs > 0) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '${widget.entry.durationMs}ms',
+                              style: const TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        widget.entry.agent.displayNameTr,
-                        style: TextStyle(
-                          color: _agentBadgeColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                        widget.entry.message,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
                         ),
                       ),
+                      if (widget.entry.detail != null) ...[
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => _isExpanded = !_isExpanded),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _isExpanded
+                                    ? Icons.keyboard_arrow_up
+                                    : Icons.keyboard_arrow_down,
+                                color: AppColors.textTertiary,
+                                size: 14,
+                              ),
+                              Text(
+                                _isExpanded ? 'Gizle' : 'Detayları Gör',
+                                style: const TextStyle(
+                                  color: AppColors.textTertiary,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_isExpanded)
+                          Container(
+                            margin: const EdgeInsets.only(top: 6),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceLight,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              widget.entry.detail!,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                      ],
                     ],
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  _formatTime(widget.entry.timestamp),
-                  style: const TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 10,
-                  ),
-                ),
-                if (widget.entry.durationMs > 0) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    '${widget.entry.durationMs}ms',
-                    style: const TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 6),
-            // Mesaj
-            Text(
-              widget.entry.message,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
               ),
-            ),
-            // Detay (geniş letilebilir)
-            if (widget.entry.detail != null) ...[
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () => setState(() => _isExpanded = !_isExpanded),
-                child: Row(
-                  children: [
-                    Icon(
-                      _isExpanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      color: AppColors.textTertiary,
-                      size: 14,
-                    ),
-                    Text(
-                      _isExpanded ? 'Gizle' : 'Detayları Gör',
-                      style: const TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (_isExpanded)
-                Container(
-                  margin: const EdgeInsets.only(top: 6),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    widget.entry.detail!,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
             ],
-          ],
+          ),
         ),
       ),
     );

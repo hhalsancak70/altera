@@ -9,14 +9,15 @@ class AppConstants {
   /// Gemini API için maksimum token sayısı - maliyet kontrolü
   static const int kGeminiMaxTokens = 1024;
 
-  /// Gemini API çağrıları arası bekleme süresi (ms) - rate limit aşımını önler
-  static const int kAnalysisDelayMs = 200;
+  /// Gemini API çağrıları arası bekleme süresi (ms)
+  /// Free tier: 15 istek/dakika → en az 4s arayla gönderim gerekli
+  static const int kAnalysisDelayMs = 4500;
 
   /// Hata durumunda maksimum yeniden deneme sayısı
-  static const int kGeminiMaxRetries = 2;
+  static const int kGeminiMaxRetries = 3;
 
-  /// Rate limit (429) hatasında bekleme süresi (ms)
-  static const int kRateLimitDelayMs = 60000;
+  /// Rate limit hatasında varsayılan bekleme (ms) — API retry-after parse edilemezse
+  static const int kRateLimitDelayMs = 15000;
 
   /// Bir ajan döngüsünde maksimum analiz edilecek işlem sayısı
   static const int kMaxTransactionsPerCycle = 20;
@@ -45,8 +46,8 @@ class AppConstants {
   /// SQLite veritabanı dosya adı
   static const String kDatabaseName = 'altera.db';
 
-  /// SQLite şema versiyonu - migration için artırılır
-  static const int kDatabaseVersion = 1;
+  /// SQLite şema versiyonu - monthly_archives tablosu v2'de eklendi
+  static const int kDatabaseVersion = 2;
 
   // --- YATIRIM ---
 

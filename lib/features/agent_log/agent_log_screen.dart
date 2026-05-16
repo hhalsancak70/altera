@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/agents/orchestrator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/agent_log_entry.dart';
 import '../../core/providers.dart';
@@ -24,6 +25,16 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
   Widget build(BuildContext context) {
     final orchestratorState = ref.watch(orchestratorProvider);
     final logsAsync = ref.watch(recentAgentLogsProvider);
+
+    // Döngü tamamlanınca logları ve bütçeyi yenile
+    ref.listen(orchestratorProvider, (prev, next) {
+      if (next is OrchestratorStateIdle && prev != null && prev.isRunning) {
+        ref.invalidate(recentAgentLogsProvider);
+        ref.invalidate(currentMonthBudgetsProvider);
+        ref.invalidate(monthlySummaryProvider);
+        ref.invalidate(monthlySpendingProvider);
+      }
+    });
     final isRunning = orchestratorState.isRunning;
 
     return Scaffold(

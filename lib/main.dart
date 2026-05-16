@@ -1,4 +1,5 @@
 // ALTERA - Gemini 2.0 Flash tabanlı kişisel finans yönetim uygulaması
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +7,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/database/hive_boxes.dart';
+import 'core/providers.dart';
 import 'core/services/notification_service.dart';
+import 'features/archive/archive_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/import/import_screen.dart';
 import 'features/transactions/transactions_screen.dart';
 import 'features/budget/budget_screen.dart';
 import 'features/investments/investments_screen.dart';
@@ -19,7 +23,7 @@ import 'shared/widgets/altera_bottom_nav.dart';
 
 /// Uygulama giriş noktası.
 /// Başlatma sırası:
-/// 1. Flutter binding başlat
+/// 1. Flutter binding + global hata yakalayıcılar
 /// 2. Hive başlat (kullanıcı profili, ayarlar)
 /// 3. Bildirim servisi başlat
 /// 4. Riverpod container oluştur
@@ -27,7 +31,18 @@ import 'shared/widgets/altera_bottom_nav.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Dikey yönlendirmeyi tercih et - finans uygulaması için daha iyi
+  // Flutter framework hatalarını yakala — uygulamanın çökmesini önle
+  FlutterError.onError = (details) {
+    if (kDebugMode) FlutterError.presentError(details);
+  };
+
+  // Dart async hatalarını yakala (FlutterError yakalamadıkları)
+  PlatformDispatcher.instance.onError = (error, stack) {
+    if (kDebugMode) debugPrint('Unhandled error: $error\n$stack');
+    return true; // Hata işlendi, uygulama çökmüyor
+  };
+
+  // Dikey yönlendirmeyi tercih et
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -83,6 +98,14 @@ final _router = GoRouter(
       path: '/onboarding',
       builder: (context, state) => const OnboardingScreen(),
     ),
+    GoRoute(
+      path: '/import',
+      builder: (context, state) => const ImportScreen(),
+    ),
+    GoRoute(
+      path: '/archive',
+      builder: (context, state) => const ArchiveScreen(),
+    ),
   ],
 );
 
@@ -113,16 +136,37 @@ class AlteraApp extends StatelessWidget {
   }
 }
 
-/// BottomNav ile sarılmış ana scaffold
-class MainScaffold extends StatelessWidget {
+/// BottomNav ile sarılmış ana scaffold.
+/// İlk açılışta aylık döngü kontrolü yapar.
+class MainScaffold extends ConsumerStatefulWidget {
   final Widget child;
 
   const MainScaffold({super.key, required this.child});
 
   @override
+  ConsumerState<MainScaffold> createState() => _MainScaffoldState();
+}
+
+class _MainScaffoldState extends ConsumerState<MainScaffold> {
+  @override
+  void initState() {
+    super.initState();
+    // Aylık döngü kontrolü — gerekiyorsa arşivler
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkCycle());
+  }
+
+  Future<void> _checkCycle() async {
+    try {
+      await ref.read(cycleServiceProvider).checkAndRunIfNeeded();
+    } catch (_) {
+      // Döngü hatası kritik değil — uygulamayı durdurma
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: const AlteraBottomNav(),
     );
   }

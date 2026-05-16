@@ -1,10 +1,11 @@
-// İşlemler listesi ekranı - arama, filtre ve AI etiketleri
+// İşlemler listesi ekranı - arama, filtre, CRUD ve AI etiketleri
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
+import 'add_edit_transaction_screen.dart';
 import 'widgets/transaction_tile.dart';
 
 /// Tüm işlemler listesi ekranı.
@@ -41,6 +42,13 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             onPressed: _showFilterSheet,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openAddScreen(context),
+        backgroundColor: AppColors.accent,
+        foregroundColor: Colors.black,
+        icon: const Icon(Icons.add),
+        label: const Text('İşlem Ekle'),
       ),
       body: Column(
         children: [
@@ -98,9 +106,28 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.only(bottom: 88), // FAB için boşluk
                   itemCount: filtered.length,
-                  itemBuilder: (context, i) => TransactionTile(tx: filtered[i]),
+                  itemBuilder: (context, i) {
+                    final tx = filtered[i];
+                    return Dismissible(
+                      key: ValueKey(tx.id),
+                      // Sola kaydır → sil
+                      background: _buildSwipeBackground(
+                        alignment: Alignment.centerRight,
+                        color: Colors.redAccent,
+                        icon: Icons.delete_outline,
+                        label: 'Sil',
+                      ),
+                      direction: DismissDirection.endToStart,
+                      confirmDismiss: (_) => _confirmDelete(context, tx),
+                      onDismissed: (_) => _deleteTransaction(tx),
+                      child: GestureDetector(
+                        onLongPress: () => _openEditScreen(context, tx),
+                        child: TransactionTile(tx: tx),
+                      ),
+                    );
+                  },
                 );
               },
               loading: () => const Center(
@@ -117,6 +144,103 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAddScreen(BuildContext context) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AddEditTransactionScreen(),
+      ),
+    );
+    if (result == true) {
+      ref.invalidate(allTransactionsProvider);
+    }
+  }
+
+  Future<void> _openEditScreen(BuildContext context, Transaction tx) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddEditTransactionScreen(existingTransaction: tx),
+      ),
+    );
+    if (result == true) {
+      ref.invalidate(allTransactionsProvider);
+    }
+  }
+
+  Future<bool?> _confirmDelete(BuildContext context, Transaction tx) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('İşlemi Sil', style: TextStyle(color: AppColors.textPrimary)),
+        content: Text(
+          '"${tx.description}" işlemi kalıcı olarak silinecek.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('İptal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteTransaction(Transaction tx) {
+    final repo = ref.read(transactionRepositoryProvider);
+    repo.deleteTransaction(tx.id).then((_) {
+      ref.invalidate(allTransactionsProvider);
+      ref.invalidate(monthlySpendingProvider);
+      ref.invalidate(monthlySummaryProvider);
+      // Undo snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('İşlem silindi'),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Geri Al',
+            onPressed: () {
+              repo.addTransaction(tx).then((_) {
+                ref.invalidate(allTransactionsProvider);
+              });
+            },
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    });
+  }
+
+  Widget _buildSwipeBackground({
+    required AlignmentGeometry alignment,
+    required Color color,
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      color: color,
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 22),
+          const SizedBox(height: 4),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
         ],
       ),
     );

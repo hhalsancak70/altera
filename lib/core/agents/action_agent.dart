@@ -9,7 +9,7 @@ import '../database/hive_boxes.dart';
 import '../models/agent_log_entry.dart';
 import '../models/budget.dart';
 import '../models/user_profile.dart';
-import '../services/bank_mock_service.dart';
+import '../services/investment_fund_service.dart';
 import '../services/gemini_service.dart';
 import '../services/notification_service.dart';
 
@@ -41,18 +41,18 @@ class ActionAgent {
   final DbHelper _dbHelper;
   final GeminiService _gemini;
   final NotificationService _notifications;
-  final BankMockService _bankService;
+  final InvestmentFundService _fundService;
   final _uuid = const Uuid();
 
   ActionAgent({
     required DbHelper dbHelper,
     required GeminiService gemini,
     required NotificationService notifications,
-    required BankMockService bankService,
+    required InvestmentFundService fundService,
   })  : _dbHelper = dbHelper,
         _gemini = gemini,
         _notifications = notifications,
-        _bankService = bankService;
+        _fundService = fundService;
 
   /// Ajan çalışma döngüsü
   Future<ActionResult> run({
@@ -136,7 +136,7 @@ class ActionAgent {
         );
 
         if (savings >= AppConstants.kMinInvestmentAmount) {
-          final funds = await _bankService.fetchInvestmentFunds();
+          final funds = await _fundService.fetchInvestmentFunds();
           final spending = await _dbHelper.getMonthlySpendingByCategory(now);
 
           final recommendation = await _gemini.analyzeAndRecommendInvestment(
@@ -147,7 +147,7 @@ class ActionAgent {
           );
 
           // Simüle transferi gerçekleştir
-          final transferResult = await _bankService.executeInvestmentTransfer(
+          final transferResult = await _fundService.executeInvestmentTransfer(
             fundId: recommendation.fundId,
             amount: recommendation.suggestedAmount,
             reason: recommendation.reasoning,

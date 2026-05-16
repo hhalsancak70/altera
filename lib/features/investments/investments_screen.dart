@@ -220,10 +220,10 @@ class InvestmentsScreen extends ConsumerWidget {
     InvestmentFund fund,
     double amount,
   ) async {
-    final bank = ref.read(bankMockServiceProvider);
+    final fundService = ref.read(investmentFundServiceProvider);
     final db = ref.read(dbHelperProvider);
 
-    final result = await bank.executeInvestmentTransfer(
+    final result = await fundService.executeInvestmentTransfer(
       fundId: fund.id,
       amount: amount,
       reason: 'Manuel transfer',
@@ -231,7 +231,7 @@ class InvestmentsScreen extends ConsumerWidget {
 
     if (result.success) {
       await db.insertInvestmentRecord(
-        id: result.transferId,
+        id: result.transactionId ?? '',
         fundId: fund.id,
         fundName: fund.name,
         amount: amount,
