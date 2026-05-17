@@ -18,6 +18,7 @@ import 'features/investments/investments_screen.dart';
 import 'features/agent_log/agent_log_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'core/utils/app_snackbar.dart';
 import 'shared/theme/app_theme.dart';
 import 'shared/widgets/altera_bottom_nav.dart';
 
@@ -116,6 +117,7 @@ class AlteraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       title: 'ALTERA',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,

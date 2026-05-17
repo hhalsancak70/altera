@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/providers.dart';
+import '../../core/services/gemini_service.dart';
 import 'widgets/agent_status_card.dart';
 import 'widgets/monthly_summary_card.dart';
 import 'widgets/spending_pie_chart.dart';
@@ -97,7 +98,29 @@ class DashboardScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: orchestratorState.isRunning
             ? null
-            : () => ref.read(orchestratorProvider.notifier).runOnce(),
+            : () async {
+                ref.invalidate(geminiServiceProvider);
+                if (!await GeminiService.hasApiKey()) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Önce Ayarlar\'dan Gemini API key kaydet (💾 ikonuna bas)',
+                        ),
+                        backgroundColor: AppColors.warning,
+                      ),
+                    );
+                  }
+                  return;
+                }
+                await ref.read(orchestratorProvider.notifier).runOnce();
+                ref.invalidate(currentMonthTransactionsProvider);
+                ref.invalidate(recentTransactionsProvider);
+                ref.invalidate(monthlySpendingProvider);
+                ref.invalidate(monthlySummaryProvider);
+                ref.invalidate(currentMonthBudgetsProvider);
+                ref.invalidate(recentAgentLogsProvider);
+              },
         backgroundColor:
             orchestratorState.isRunning ? AppColors.surfaceLight : AppColors.accent,
         foregroundColor: AppColors.primary,

@@ -92,18 +92,14 @@ final analysisAgentProvider = Provider<AnalysisAgent?>((ref) {
   );
 });
 
-/// ActionAgent - Gemini servisine bağımlı
-final actionAgentProvider = Provider<ActionAgent?>((ref) {
-  final geminiAsync = ref.watch(geminiServiceProvider);
-  return geminiAsync.when(
-    data: (gemini) => ActionAgent(
-      dbHelper: ref.read(dbHelperProvider),
-      gemini: gemini,
-      notifications: ref.read(notificationServiceProvider),
-      fundService: ref.read(investmentFundServiceProvider),
-    ),
-    loading: () => null,
-    error: (_, __) => null,
+/// ActionAgent — Gemini opsiyonel (bütçe/anomali API keysiz de çalışır)
+final actionAgentProvider = Provider<ActionAgent>((ref) {
+  final gemini = ref.watch(geminiServiceProvider).valueOrNull;
+  return ActionAgent(
+    dbHelper: ref.read(dbHelperProvider),
+    gemini: gemini,
+    notifications: ref.read(notificationServiceProvider),
+    fundService: ref.read(investmentFundServiceProvider),
   );
 });
 
@@ -120,17 +116,7 @@ final orchestratorProvider =
   return Orchestrator(
     dataAgent: ref.read(dataCollectionAgentProvider),
     dbHelper: db,
-    getAnalysisAgent: () =>
-        ref.read(analysisAgentProvider) ??
-        AnalysisAgent(gemini: GeminiService.withKey(''), dbHelper: db),
-    getActionAgent: () =>
-        ref.read(actionAgentProvider) ??
-        ActionAgent(
-          dbHelper: db,
-          gemini: GeminiService.withKey(''),
-          notifications: ref.read(notificationServiceProvider),
-          fundService: ref.read(investmentFundServiceProvider),
-        ),
+    getActionAgent: () => ref.read(actionAgentProvider),
   );
 });
 

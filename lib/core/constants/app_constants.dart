@@ -6,12 +6,21 @@ class AppConstants {
 
   // --- GEMİNİ API ---
 
+  /// Birincil Gemini modeli; başarısız olursa [kGeminiModelFallbacks] denenir
+  static const String kGeminiModelPrimary = 'gemini-2.0-flash';
+
+  /// Birincil model kullanılamazsa sırayla denenecek modeller
+  static const List<String> kGeminiModelFallbacks = [
+    'gemini-2.0-flash-001',
+    'gemini-2.5-flash',
+  ];
+
   /// Gemini API için maksimum token sayısı - maliyet kontrolü
   static const int kGeminiMaxTokens = 1024;
 
   /// Gemini API çağrıları arası bekleme süresi (ms)
-  /// Free tier: 15 istek/dakika → en az 4s arayla gönderim gerekli
-  static const int kAnalysisDelayMs = 4500;
+  /// Free tier: ~10–15 istek/dakika → güvenli aralık 6s+
+  static const int kAnalysisDelayMs = 8000;
 
   /// Hata durumunda maksimum yeniden deneme sayısı
   static const int kGeminiMaxRetries = 3;
@@ -19,8 +28,8 @@ class AppConstants {
   /// Rate limit hatasında varsayılan bekleme (ms) — API retry-after parse edilemezse
   static const int kRateLimitDelayMs = 15000;
 
-  /// Bir ajan döngüsünde maksimum analiz edilecek işlem sayısı
-  static const int kMaxTransactionsPerCycle = 20;
+  /// Bir ajan döngüsünde maksimum analiz edilecek işlem sayısı (free tier için düşük)
+  static const int kMaxTransactionsPerCycle = 3;
 
   // --- BÜTÇE ---
 

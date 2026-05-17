@@ -10,6 +10,9 @@ import '../../core/constants/app_constants.dart';
 import '../../core/database/hive_boxes.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/providers.dart';
+import '../../core/services/gemini_service.dart';
+import '../../core/utils/app_snackbar.dart';
+import '../../core/utils/api_key_storage.dart';
 
 /// Kullanıcı ayarları ekranı.
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -24,6 +27,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _nameController = TextEditingController();
   final _incomeController = TextEditingController();
   bool _apiKeyVisible = false;
+  bool _isSavingApiKey = false;
+  bool _apiKeySaved = false;
 
   @override
   void initState() {
@@ -32,11 +37,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _loadCurrentValues() async {
-    const storage = FlutterSecureStorage();
-    final key = await storage.read(key: AppConstants.kSecureKeyGeminiApiKey);
-    if (key != null) {
-      _apiKeyController.text = key;
-    }
+    final key = await readGeminiApiKey();
+    if (!mounted) return;
+    setState(() {
+      if (key != null && key.isNotEmpty) {
+        _apiKeyController.text = key;
+        _apiKeySaved = true;
+      }
+    });
   }
 
   @override
@@ -144,9 +152,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          onPressed:
+                              _isSavingApiKey ? null : _saveApiKey,
+                          icon: _isSavingApiKey
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primary,
+                                  ),
+                                )
+                              : const Icon(Icons.save, size: 18),
+                          label: Text(
+                            _isSavingApiKey
+                                ? 'Kaydediliyor...'
+                                : 'API Key\'i Kaydet',
+                          ),
+                        ),
+                      ),
+                      if (_apiKeySaved) ...[
+                        const SizedBox(height: 8),
+                        const Row(
+                          children: [
+                            Icon(Icons.check_circle,
+                                color: AppColors.success, size: 14),
+                            SizedBox(width: 6),
+                            Text(
+                              'Key cihazda kayıtlı',
+                              style: TextStyle(
+                                color: AppColors.success,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       const Text(
-                        'API key Google AI Studio\'dan alınabilir.\nUygulama içinde güvenli olarak saklanır.',
+                        'Google AI Studio\'dan alınır. Kaydettikten sonra yeşil onay görünmeli.',
                         style: TextStyle(
                           color: AppColors.textTertiary,
                           fontSize: 11,
@@ -231,17 +280,68 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _saveApiKey() async {
-    const storage = FlutterSecureStorage();
-    await storage.write(
-        key: AppConstants.kSecureKeyGeminiApiKey, value: _apiKeyController.text);
-    ref.invalidate(geminiServiceProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('API Key kaydedildi'),
-          backgroundColor: AppColors.success,
-        ),
+    final key = _apiKeyController.text.trim();
+    if (key.isEmpty) {
+      showAppSnackBar('API key boş olamaz', backgroundColor: AppColors.danger);
+      return;
+    }
+
+    if (!key.startsWith('AIza')) {
+      showAppSnackBar(
+        'Geçerli bir Gemini key gir (AIza ile başlar)',
+        backgroundColor: AppColors.warning,
       );
+      return;
+    }
+
+    setState(() => _isSavingApiKey = true);
+
+    try {
+      await writeGeminiApiKey(key);
+
+      // Gerçekten yazıldı mı kontrol et
+      final saved = await readGeminiApiKey();
+      if (saved != key) {
+        throw Exception('Key cihaza yazılamadı');
+      }
+
+      ref.invalidate(geminiServiceProvider);
+
+      if (mounted) {
+        setState(() => _apiKeySaved = true);
+        showAppSnackBar(
+          'API key kaydedildi ✓',
+          backgroundColor: AppColors.success,
+        );
+      }
+
+      // Arka planda kısa bağlantı testi (kota doluysa yine de kayıt geçerli)
+      try {
+        await GeminiService.initialize()
+            .timeout(const Duration(seconds: 8));
+        if (mounted) {
+          showAppSnackBar(
+            'Gemini bağlantısı çalışıyor ✓',
+            backgroundColor: AppColors.success,
+          );
+        }
+      } catch (e) {
+        if (!mounted) return;
+        final msg = e is GeminiException && e.isQuotaExceeded
+            ? 'Key kayıtlı. Kota dolu — biraz bekleyip dene.'
+            : 'Key kayıtlı. Ağ testi başarısız — yine de kullanılabilir.';
+        showAppSnackBar(msg, backgroundColor: AppColors.warning);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _apiKeySaved = false);
+        showAppSnackBar(
+          'Kaydedilemedi: $e',
+          backgroundColor: AppColors.danger,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingApiKey = false);
     }
   }
 

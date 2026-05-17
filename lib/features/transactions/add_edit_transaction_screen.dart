@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
+import '../../core/utils/app_snackbar.dart';
 
 /// İşlem ekleme ve düzenleme ekranı.
 ///
@@ -210,7 +211,7 @@ class _AddEditTransactionScreenState
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               subtitle: const Text(
-                'Açıklamana göre AI kategori atar',
+                'Kayıttan sonra Ajan Döngüsü ile Gemini kategorize eder',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               activeColor: AppColors.accent,
@@ -316,8 +317,15 @@ class _AddEditTransactionScreenState
         await repo.addTransaction(tx);
       }
 
+      final snackMessage = _isEditing
+          ? (_autoCategory
+              ? 'İşlem güncellendi — yeniden analiz için Ajan Döngüsü'
+              : 'İşlem güncellendi')
+          : (_autoCategory
+              ? 'İşlem eklendi — kategorilemek için Ajan Döngüsüne bas'
+              : 'İşlem eklendi');
+
       if (mounted) {
-        // Tüm provider'ları yenile
         ref.invalidate(currentMonthTransactionsProvider);
         ref.invalidate(allTransactionsProvider);
         ref.invalidate(recentTransactionsProvider);
@@ -326,13 +334,7 @@ class _AddEditTransactionScreenState
         ref.invalidate(currentMonthBudgetsProvider);
 
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isEditing ? 'İşlem güncellendi' : 'İşlem eklendi'),
-            backgroundColor: Colors.greenAccent.shade700,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showAppSnackBar(snackMessage, backgroundColor: Colors.greenAccent.shade700);
       }
     } catch (e) {
       if (mounted) {

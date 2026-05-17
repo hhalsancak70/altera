@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
+import '../../core/utils/app_snackbar.dart';
 import 'add_edit_transaction_screen.dart';
 import 'widgets/transaction_tile.dart';
 
@@ -121,7 +122,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       ),
                       direction: DismissDirection.endToStart,
                       confirmDismiss: (_) => _confirmDelete(context, tx),
-                      onDismissed: (_) => _deleteTransaction(tx),
+                      onDismissed: (_) {
+                        _deleteTransaction(tx);
+                      },
                       child: GestureDetector(
                         onLongPress: () => _openEditScreen(context, tx),
                         child: TransactionTile(tx: tx),
@@ -198,29 +201,22 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     );
   }
 
-  void _deleteTransaction(Transaction tx) {
-    final repo = ref.read(transactionRepositoryProvider);
-    repo.deleteTransaction(tx.id).then((_) {
+  Future<void> _deleteTransaction(Transaction tx) async {
+    try {
+      await ref.read(transactionRepositoryProvider).deleteTransaction(tx.id);
       ref.invalidate(allTransactionsProvider);
       ref.invalidate(monthlySpendingProvider);
       ref.invalidate(monthlySummaryProvider);
-      // Undo snackbar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('İşlem silindi'),
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: 'Geri Al',
-            onPressed: () {
-              repo.addTransaction(tx).then((_) {
-                ref.invalidate(allTransactionsProvider);
-              });
-            },
-          ),
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    });
+      ref.invalidate(recentTransactionsProvider);
+      ref.invalidate(currentMonthTransactionsProvider);
+      if (mounted) {
+        showAppSnackBar('İşlem silindi', backgroundColor: AppColors.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar('Silinemedi', backgroundColor: AppColors.danger);
+      }
+    }
   }
 
   Widget _buildSwipeBackground({

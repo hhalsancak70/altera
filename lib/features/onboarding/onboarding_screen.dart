@@ -2,7 +2,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/database/hive_boxes.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/providers.dart';
+import '../../core/utils/api_key_storage.dart';
 
 /// İlk açılış sihirbazı (3 adım).
 /// Adım 1: ALTERA'ya hoşgeldin
@@ -128,11 +128,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _finish() async {
     // API key kaydet
     if (_apiKeyController.text.isNotEmpty) {
-      const storage = FlutterSecureStorage();
-      await storage.write(
-        key: AppConstants.kSecureKeyGeminiApiKey,
-        value: _apiKeyController.text,
-      );
+      await writeGeminiApiKey(_apiKeyController.text);
     }
 
     // Kullanıcı profili oluştur

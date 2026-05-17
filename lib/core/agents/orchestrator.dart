@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../constants/app_constants.dart';
 import '../database/db_helper.dart';
 import '../models/agent_log_entry.dart';
+import '../services/gemini_service.dart';
 import 'data_collection_agent.dart';
 import 'analysis_agent.dart';
 import 'action_agent.dart';
@@ -78,9 +79,6 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
   final DataCollectionAgent _dataAgent;
   final DbHelper _dbHelper;
 
-  /// Her döngüde güncel AnalysisAgent'ı döndüren callback
-  final AnalysisAgent Function() _getAnalysisAgent;
-
   /// Her döngüde güncel ActionAgent'ı döndüren callback
   final ActionAgent Function() _getActionAgent;
 
@@ -90,11 +88,9 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
   Orchestrator({
     required DataCollectionAgent dataAgent,
     required DbHelper dbHelper,
-    required AnalysisAgent Function() getAnalysisAgent,
     required ActionAgent Function() getActionAgent,
   })  : _dataAgent = dataAgent,
         _dbHelper = dbHelper,
-        _getAnalysisAgent = getAnalysisAgent,
         _getActionAgent = getActionAgent,
         super(const OrchestratorStateIdle());
 
@@ -126,16 +122,43 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
         collectedCount: collectionResult.newTransactionsCount);
 
     late AnalysisResult analysisResult;
-    try {
-      analysisResult = await _getAnalysisAgent().run(logCallback: _log);
-    } catch (e) {
-      _log('orchestrator', 'Analiz hatası: $e', LogLevel.error);
+    if (!await GeminiService.hasApiKey()) {
+      _log(
+        'orchestrator',
+        'Gemini API key bulunamadı — Ayarlar\'dan kaydet ve 💾 butonuna bas',
+        LogLevel.warning,
+      );
       analysisResult = const AnalysisResult(
         analyzedCount: 0,
         failedCount: 0,
         categoryDistribution: {},
         durationMs: 0,
       );
+    } else {
+      try {
+        final gemini = await GeminiService.initialize();
+        final analysisAgent = AnalysisAgent(
+          gemini: gemini,
+          dbHelper: _dbHelper,
+        );
+        analysisResult = await analysisAgent.run(logCallback: _log);
+      } on GeminiException catch (e) {
+        _log('orchestrator', 'Gemini: ${e.message}', LogLevel.warning);
+        analysisResult = const AnalysisResult(
+          analyzedCount: 0,
+          failedCount: 0,
+          categoryDistribution: {},
+          durationMs: 0,
+        );
+      } catch (e) {
+        _log('orchestrator', 'Analiz hatası: $e', LogLevel.error);
+        analysisResult = const AnalysisResult(
+          analyzedCount: 0,
+          failedCount: 0,
+          categoryDistribution: {},
+          durationMs: 0,
+        );
+      }
     }
 
     // ─── AŞAMA 3: AKSİYONLAR ───

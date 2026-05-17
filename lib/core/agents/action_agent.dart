@@ -39,14 +39,14 @@ class ActionResult {
 /// ```
 class ActionAgent {
   final DbHelper _dbHelper;
-  final GeminiService _gemini;
+  final GeminiService? _gemini;
   final NotificationService _notifications;
   final InvestmentFundService _fundService;
   final _uuid = const Uuid();
 
   ActionAgent({
     required DbHelper dbHelper,
-    required GeminiService gemini,
+    GeminiService? gemini,
     required NotificationService notifications,
     required InvestmentFundService fundService,
   })  : _dbHelper = dbHelper,
@@ -92,30 +92,29 @@ class ActionAgent {
           logCallback('action', action, LogLevel.warning);
         } else if (budget.status == BudgetStatus.warning) {
           // Uyarı: %80-99 arası
-          try {
-            final suggestion = await _gemini.generateBudgetAlert(
-              category: budget.category,
-              overspentAmount: budget.spentAmount - budget.limitAmount * 0.8,
-            );
-
-            await _notifications.showBudgetWarning(
-              category: budget.category,
-              usagePercentage: budget.usagePercentage,
-              suggestion: suggestion,
-            );
-
-            final action =
-                '${budget.category.displayNameTr} uyarısı: %${(budget.usagePercentage * 100).toStringAsFixed(0)} dolu';
-            actions.add(action);
-            logCallback('action', action, LogLevel.warning);
-          } catch (_) {
-            // Gemini başarısız - yine de bildirim gönder
-            await _notifications.showBudgetWarning(
-              category: budget.category,
-              usagePercentage: budget.usagePercentage,
-              suggestion: 'Bu kategoride harcamalarını gözden geçir.',
-            );
+          var suggestion = 'Bu kategoride harcamalarını gözden geçir.';
+          final gemini = _gemini;
+          if (gemini != null) {
+            try {
+              suggestion = await gemini.generateBudgetAlert(
+                category: budget.category,
+                overspentAmount: budget.spentAmount - budget.limitAmount * 0.8,
+              );
+            } catch (_) {
+              // Gemini başarısız — varsayılan metin kullanılır
+            }
           }
+
+          await _notifications.showBudgetWarning(
+            category: budget.category,
+            usagePercentage: budget.usagePercentage,
+            suggestion: suggestion,
+          );
+
+          final action =
+              '${budget.category.displayNameTr} uyarısı: %${(budget.usagePercentage * 100).toStringAsFixed(0)} dolu';
+          actions.add(action);
+          logCallback('action', action, LogLevel.warning);
         }
       }
     } catch (e) {
@@ -135,11 +134,12 @@ class ActionAgent {
           LogLevel.info,
         );
 
-        if (savings >= AppConstants.kMinInvestmentAmount) {
+        final gemini = _gemini;
+        if (savings >= AppConstants.kMinInvestmentAmount && gemini != null) {
           final funds = await _fundService.fetchInvestmentFunds();
           final spending = await _dbHelper.getMonthlySpendingByCategory(now);
 
-          final recommendation = await _gemini.analyzeAndRecommendInvestment(
+          final recommendation = await gemini.analyzeAndRecommendInvestment(
             spending: spending,
             riskProfile: profile.riskProfile,
             savingsAmount: savings,

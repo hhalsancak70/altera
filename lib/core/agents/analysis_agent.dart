@@ -115,14 +115,32 @@ class AnalysisAgent {
             LogLevel.info,
           );
         }
-      } catch (e) {
-        // Tek bir işlem başarısız olsa bile devam et
+      } on GeminiException catch (e) {
         failedCount++;
-        // Hata mesajını kısa tut (GeminiException zaten özetlenmiş gelir)
-        final errMsg = e is GeminiException
-            ? e.message
-            : e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
-        final short = errMsg.length > 80 ? '${errMsg.substring(0, 80)}…' : errMsg;
+        final short =
+            e.message.length > 80 ? '${e.message.substring(0, 80)}…' : e.message;
+        logCallback(
+          'analysis',
+          '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
+          LogLevel.warning,
+        );
+
+        // Kota dolduysa kalan işlemleri zorla kategorize etme — beklet
+        if (e.isQuotaExceeded) {
+          final remaining = unanalyzed.length - i;
+          logCallback(
+            'analysis',
+            'Gemini kotası doldu — $remaining işlem analiz bekliyor (1–2 dk sonra tekrar dene)',
+            LogLevel.warning,
+          );
+          break;
+        }
+      } catch (e) {
+        failedCount++;
+        final errMsg =
+            e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
+        final short =
+            errMsg.length > 80 ? '${errMsg.substring(0, 80)}…' : errMsg;
         logCallback(
           'analysis',
           '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
