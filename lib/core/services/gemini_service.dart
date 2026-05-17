@@ -8,6 +8,9 @@ import '../models/transaction.dart';
 import '../models/investment_fund.dart';
 import '../models/user_profile.dart';
 
+// Asset modelini okuyabilmesi için Yatırım Ekranı import edildi (Yolunu projene göre düzelt)
+import '../../features/investments/investments_screen.dart';
+
 /// Gemini API yanıt parse hatası
 class GeminiException implements Exception {
   final String message;
@@ -63,13 +66,13 @@ class GeminiService {
 
   GeminiService._(String apiKey)
       : _model = GenerativeModel(
-          model: 'gemini-2.0-flash',
-          apiKey: apiKey,
-          generationConfig: GenerationConfig(
-            maxOutputTokens: AppConstants.kGeminiMaxTokens,
-            temperature: 0.1, // Düşük temperature - tutarlı JSON çıktısı için
-          ),
-        );
+    model: 'gemini-2.0-flash',
+    apiKey: apiKey,
+    generationConfig: GenerationConfig(
+      maxOutputTokens: AppConstants.kGeminiMaxTokens,
+      temperature: 0.1, // Düşük temperature - tutarlı JSON çıktısı için
+    ),
+  );
 
   /// flutter_secure_storage'dan API key okuyarak modeli başlatır
   static Future<GeminiService> initialize() async {
@@ -168,7 +171,7 @@ SADECE geçerli JSON döndür, başka hiçbir şey yazma:
 
     final fundsList = funds
         .map((f) =>
-            '${f.id}: ${f.name} (${f.type.displayNameTr}, %${f.annualReturnRate} yıllık getiri, ${f.riskLevel.displayNameTr})')
+    '${f.id}: ${f.name} (${f.type.displayNameTr}, %${f.annualReturnRate} yıllık getiri, ${f.riskLevel.displayNameTr})')
         .join('\n');
 
     final riskDesc = switch (riskProfile) {
@@ -271,6 +274,42 @@ SADECE geçerli JSON döndür (bulamazsan null döndür):
     }
   }
 
+  /// YENİ EKLENEN: Kullanıcının mevcut portföyünü analiz edip enflasyon kalkanı önerisi sunar.
+  ///
+  /// [assets] Kullanıcının portföyündeki varlıklar listesi
+  Future<String> analyzePortfolio(List<Asset> assets) async {
+    if (assets.isEmpty) {
+      return 'Portföyün şu an boş. Hemen bir varlık ekleyerek enflasyona karşı korunmaya başla!';
+    }
+
+    String portfolioText = '';
+    double totalTl = 0;
+    for (var a in assets) {
+      portfolioText += '- ${a.name}: ${a.totalCost.toStringAsFixed(0)} TL maliyetle alınmış.\n';
+      totalTl += a.totalCost;
+    }
+
+    final prompt = '''
+Sen ALTERA uygulamasının "Enflasyon Kalkanı Yatırım Ajanı"sın. 
+Kullanıcının toplam ${totalTl.toStringAsFixed(0)} TL maliyetli portföyü şu şekilde:
+$portfolioText
+
+Görevlerin:
+1. Bu portföyün risk dağılımını 1 cümle ile değerlendir.
+2. Türkiye'deki mevcut enflasyonist ortamı düşünerek, bu portföyü enflasyona karşı korumak için kısa bir tavsiye ver.
+3. Maksimum 3-4 cümlelik, profesyonel ama dostane bir finansal danışman gibi konuş.
+4. "Merhaba", "Nasılsın" gibi girişleri atla, direkt analize geç.
+''';
+
+    try {
+      final response = await _model.generateContent([Content.text(prompt)]);
+      return response.text?.trim() ?? 'Portföy analizi şu an gerçekleştirilemiyor.';
+    } catch (e) {
+      // Hatayı gizlemek yerine ekrana basıyoruz ki sorunu görelim:
+      return 'Hata Detayı: $e';
+    }
+  }
+
   /// Hata mesajından "retry in X.Xs" süresini parse eder (ms cinsinden).
   static int _retryDelayMs(String error) {
     final match = RegExp(r'retry in (\d+\.?\d*)').firstMatch(error);
@@ -320,11 +359,11 @@ SADECE geçerli JSON döndür (bulamazsan null döndür):
       RiskProfile risk, List<InvestmentFund> funds) {
     return switch (risk) {
       RiskProfile.conservative =>
-        funds.firstWhere((f) => f.riskLevel == RiskLevel.low, orElse: () => funds.first),
+          funds.firstWhere((f) => f.riskLevel == RiskLevel.low, orElse: () => funds.first),
       RiskProfile.balanced =>
-        funds.firstWhere((f) => f.riskLevel == RiskLevel.medium, orElse: () => funds.first),
+          funds.firstWhere((f) => f.riskLevel == RiskLevel.medium, orElse: () => funds.first),
       RiskProfile.aggressive =>
-        funds.firstWhere((f) => f.riskLevel == RiskLevel.high, orElse: () => funds.first),
+          funds.firstWhere((f) => f.riskLevel == RiskLevel.high, orElse: () => funds.first),
     };
   }
 }
