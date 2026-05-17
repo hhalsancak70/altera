@@ -107,11 +107,11 @@ class _FlowStep extends StatelessWidget {
     Color borderColor;
 
     if (isActive) {
-      bgColor = AppColors.accent.withOpacity(0.2);
+      bgColor = AppColors.accent.withValues(alpha: 0.2);
       iconColor = AppColors.accent;
       borderColor = AppColors.accent;
     } else if (isCompleted) {
-      bgColor = AppColors.success.withOpacity(0.15);
+      bgColor = AppColors.success.withValues(alpha: 0.15);
       iconColor = AppColors.success;
       borderColor = AppColors.success;
     } else {

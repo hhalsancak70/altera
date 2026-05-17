@@ -18,6 +18,7 @@ import 'features/investments/investments_screen.dart';
 import 'features/agent_log/agent_log_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/ai_chat/ai_chat_screen.dart';
 import 'core/utils/app_snackbar.dart';
 import 'shared/theme/app_theme.dart';
 import 'shared/widgets/altera_bottom_nav.dart';
@@ -49,14 +50,24 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // Hive zorunlu — UI'ın kullandığı kutular bunu bekler
   await initHive();
-  await NotificationService.initialize();
 
   runApp(
     const ProviderScope(
       child: AlteraApp(),
     ),
   );
+
+  // Bildirim servisi ilk frame'i bloklamasın — arka planda init
+  // Hata olursa yutuluyor, uygulama yine de çalışır
+  Future.microtask(() async {
+    try {
+      await NotificationService.initialize();
+    } catch (e) {
+      if (kDebugMode) debugPrint('Notification init hatası (kritik değil): $e');
+    }
+  });
 }
 
 /// GoRouter yapılandırması
@@ -106,6 +117,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/archive',
       builder: (context, state) => const ArchiveScreen(),
+    ),
+    GoRoute(
+      path: '/ai-chat',
+      builder: (context, state) => const AiChatScreen(),
     ),
   ],
 );

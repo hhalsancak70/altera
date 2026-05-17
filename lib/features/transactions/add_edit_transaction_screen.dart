@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/models/budget.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
+import '../../core/services/gemini_service.dart';
 import '../../core/utils/app_snackbar.dart';
 
 /// İşlem ekleme ve düzenleme ekranı.
@@ -33,7 +35,6 @@ class _AddEditTransactionScreenState
 
   bool _isExpense = true; // Gider mi, Gelir mi?
   TransactionCategory _selectedCategory = TransactionCategory.other;
-  bool _autoCategory = true; // Gemini otomatik kategori
   DateTime _selectedDate = DateTime.now();
   bool _isSaving = false;
 
@@ -48,7 +49,6 @@ class _AddEditTransactionScreenState
       _amountController.text = tx.amount.abs().toStringAsFixed(2);
       _isExpense = tx.amount < 0;
       _selectedCategory = tx.category;
-      _autoCategory = !tx.isAnalyzed && tx.aiReason == null;
       _selectedDate = tx.date;
     }
   }
@@ -83,7 +83,7 @@ class _AddEditTransactionScreenState
           padding: const EdgeInsets.all(16),
           children: [
             // ─── İşlem Türü ───
-            _SectionLabel(label: 'İşlem Türü'),
+            const _SectionLabel(label: 'İşlem Türü'),
             const SizedBox(height: 8),
             SegmentedButton<bool>(
               segments: const [
@@ -114,7 +114,7 @@ class _AddEditTransactionScreenState
             const SizedBox(height: 20),
 
             // ─── Tutar ───
-            _SectionLabel(label: 'Tutar (₺)'),
+            const _SectionLabel(label: 'Tutar (₺)'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _amountController,
@@ -149,7 +149,7 @@ class _AddEditTransactionScreenState
             const SizedBox(height: 20),
 
             // ─── Açıklama ───
-            _SectionLabel(label: 'Açıklama'),
+            const _SectionLabel(label: 'Açıklama'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _descriptionController,
@@ -171,7 +171,7 @@ class _AddEditTransactionScreenState
             const SizedBox(height: 20),
 
             // ─── Tarih ───
-            _SectionLabel(label: 'Tarih'),
+            const _SectionLabel(label: 'Tarih'),
             const SizedBox(height: 8),
             InkWell(
               onTap: _pickDate,
@@ -201,41 +201,23 @@ class _AddEditTransactionScreenState
             const SizedBox(height: 20),
 
             // ─── Kategori ───
-            _SectionLabel(label: 'Kategori'),
+            const _SectionLabel(label: 'Kategori'),
             const SizedBox(height: 8),
-            CheckboxListTile(
-              value: _autoCategory,
-              onChanged: (v) => setState(() => _autoCategory = v ?? true),
-              title: const Text(
-                'Otomatik (Gemini ile tespit et)',
-                style: TextStyle(color: AppColors.textPrimary),
+            DropdownButtonFormField<TransactionCategory>(
+              initialValue: _selectedCategory,
+              dropdownColor: AppColors.surface,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.category_outlined, color: AppColors.accent),
               ),
-              subtitle: const Text(
-                'Kayıttan sonra Ajan Döngüsü ile Gemini kategorize eder',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-              ),
-              activeColor: AppColors.accent,
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
+              items: TransactionCategory.values
+                  .map((cat) => DropdownMenuItem(
+                        value: cat,
+                        child: Text('${cat.emoji}  ${cat.displayNameTr}'),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedCategory = v ?? TransactionCategory.other),
             ),
-            if (!_autoCategory) ...[
-              const SizedBox(height: 8),
-              DropdownButtonFormField<TransactionCategory>(
-                value: _selectedCategory,
-                dropdownColor: AppColors.surface,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.category_outlined, color: AppColors.accent),
-                ),
-                items: TransactionCategory.values
-                    .map((cat) => DropdownMenuItem(
-                          value: cat,
-                          child: Text('${cat.emoji}  ${cat.displayNameTr}'),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedCategory = v ?? TransactionCategory.other),
-              ),
-            ],
 
             const SizedBox(height: 32),
 
@@ -280,7 +262,7 @@ class _AddEditTransactionScreenState
       locale: const Locale('tr', 'TR'),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.dark(primary: AppColors.accent),
+          colorScheme: const ColorScheme.dark(primary: AppColors.accent),
         ),
         child: child!,
       ),
@@ -301,10 +283,10 @@ class _AddEditTransactionScreenState
         description: _descriptionController.text.trim(),
         amount: finalAmount,
         date: _selectedDate,
-        category: _autoCategory ? TransactionCategory.other : _selectedCategory,
+        category: _selectedCategory,
         type: _isExpense ? TransactionType.need : TransactionType.income,
         aiReason: null,
-        isAnalyzed: !_autoCategory, // Manuel kategori seçildiyse analiz gerekmez
+        isAnalyzed: true, // Manuel kategori seçildi, analiz gerekmez
         source: 'manual',
         createdAt: widget.existingTransaction?.createdAt ?? DateTime.now(),
       );
@@ -317,25 +299,27 @@ class _AddEditTransactionScreenState
         await repo.addTransaction(tx);
       }
 
-      final snackMessage = _isEditing
-          ? (_autoCategory
-              ? 'İşlem güncellendi — yeniden analiz için Ajan Döngüsü'
-              : 'İşlem güncellendi')
-          : (_autoCategory
-              ? 'İşlem eklendi — kategorilemek için Ajan Döngüsüne bas'
-              : 'İşlem eklendi');
+      if (!mounted) return;
 
-      if (mounted) {
-        ref.invalidate(currentMonthTransactionsProvider);
-        ref.invalidate(allTransactionsProvider);
-        ref.invalidate(recentTransactionsProvider);
-        ref.invalidate(monthlySpendingProvider);
-        ref.invalidate(monthlySummaryProvider);
-        ref.invalidate(currentMonthBudgetsProvider);
+      ref.invalidate(currentMonthTransactionsProvider);
+      ref.invalidate(allTransactionsProvider);
+      ref.invalidate(recentTransactionsProvider);
+      ref.invalidate(monthlySpendingProvider);
+      ref.invalidate(monthlySummaryProvider);
+      ref.invalidate(currentMonthBudgetsProvider);
 
-        Navigator.pop(context, true);
-        showAppSnackBar(snackMessage, backgroundColor: Colors.greenAccent.shade700);
+      final snackMessage =
+          _isEditing ? 'İşlem güncellendi' : 'İşlem eklendi';
+      showAppSnackBar(snackMessage,
+          backgroundColor: Colors.greenAccent.shade700);
+
+      // Yeni işlem ekleme → Gemini yorumu arka planda istenir, hazır olunca global snackbar
+      // Kullanıcı beklemiyor, ekran anında kapanıyor
+      if (!_isEditing) {
+        _fetchGeminiCommentInBackground(tx);
       }
+
+      Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -349,6 +333,54 @@ class _AddEditTransactionScreenState
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  /// İşlem kaydedildikten sonra Gemini'den ARKA PLANDA yorum ister.
+  /// Kullanıcı ekranı zaten kapatmış olur, yorum hazır olunca alttaki sayfada snackbar gösterilir.
+  /// Hata olursa sessizce yutulur.
+  void _fetchGeminiCommentInBackground(Transaction tx) {
+    () async {
+      try {
+        final db = ref.read(dbHelperProvider);
+        final spending = await db.getMonthlySpendingByCategory(DateTime.now());
+        final budgets = await db.getBudgetsForMonth(DateTime.now());
+        final categoryBudget = budgets
+            .firstWhere(
+              (b) => b.category == tx.category,
+              orElse: () => Budget(
+                id: '',
+                category: tx.category,
+                limitAmount: 0,
+                spentAmount: 0,
+                month: DateTime.now(),
+              ),
+            )
+            .limitAmount;
+        final spentSoFar = spending[tx.category] ?? 0;
+
+        final gemini = await ref.read(geminiServiceProvider.future);
+        final comment = await gemini.commentOnNewTransaction(
+          transaction: tx,
+          currentMonthSpending: spending,
+          categoryBudget: categoryBudget,
+          categorySpentSoFar: spentSoFar,
+        );
+
+        showAppSnackBar(
+          '✨ $comment',
+          backgroundColor: AppColors.surfaceLight,
+          duration: const Duration(seconds: 5),
+        );
+      } on GeminiException catch (e) {
+        if (!e.isQuotaExceeded) return; // sessiz fallback
+        showAppSnackBar(
+          'Gemini yorumu için kota dolu',
+          backgroundColor: AppColors.warning,
+        );
+      } catch (_) {
+        // yutuluyor — kullanıcı yorum görmese de işlem zaten kaydedildi
+      }
+    }();
   }
 
   Future<void> _confirmDelete() async {

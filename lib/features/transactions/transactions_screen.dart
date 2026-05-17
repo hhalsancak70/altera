@@ -123,6 +123,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       direction: DismissDirection.endToStart,
                       confirmDismiss: (_) => _confirmDelete(context, tx),
                       onDismissed: (_) {
+                        // Provider'ı önce sync invalidate et ki widget tree'den çıksın,
+                        // sonra async delete başla. Yoksa "dismissed but still in tree" hatası.
+                        ref.invalidate(allTransactionsProvider);
+                        ref.invalidate(currentMonthTransactionsProvider);
+                        ref.invalidate(recentTransactionsProvider);
                         _deleteTransaction(tx);
                       },
                       child: GestureDetector(
@@ -300,7 +305,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                         horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.accent.withOpacity(0.2)
+                          ? AppColors.accent.withValues(alpha: 0.2)
                           : AppColors.surfaceLight,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
@@ -333,7 +338,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 'Yalnızca analiz bekleyenler',
                 style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
               ),
-              activeColor: AppColors.accent,
+              activeThumbColor: AppColors.accent,
             ),
           ],
         ),
@@ -354,9 +359,9 @@ class _FilterChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.accent.withOpacity(0.15),
+        color: AppColors.accent.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.accent.withOpacity(0.4)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

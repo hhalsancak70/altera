@@ -349,10 +349,12 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       final importResult = await _importService.importFromExcel(
         bytes: file.bytes!,
         onProgress: (p, s) {
-          if (mounted) setState(() {
+          if (mounted) {
+            setState(() {
             _progress = p;
             _progressStatus = s;
           });
+          }
         },
       );
 

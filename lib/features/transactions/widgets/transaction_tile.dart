@@ -87,7 +87,7 @@ class TransactionTile extends StatelessWidget {
                 // Kategori etiketi
                 _Badge(
                   label: tx.category.displayNameTr,
-                  color: AppColors.textSecondary.withOpacity(0.15),
+                  color: AppColors.textSecondary.withValues(alpha: 0.15),
                   textColor: AppColors.textSecondary,
                 ),
                 const SizedBox(width: 6),
@@ -96,10 +96,10 @@ class TransactionTile extends StatelessWidget {
                   _Badge(
                     label: tx.type.displayNameTr,
                     color: tx.type == TransactionType.income
-                        ? AppColors.success.withOpacity(0.15)
+                        ? AppColors.success.withValues(alpha: 0.15)
                         : tx.type == TransactionType.need
-                            ? AppColors.info.withOpacity(0.15)
-                            : AppColors.warning.withOpacity(0.15),
+                            ? AppColors.info.withValues(alpha: 0.15)
+                            : AppColors.warning.withValues(alpha: 0.15),
                     textColor: tx.type == TransactionType.income
                         ? AppColors.success
                         : tx.type == TransactionType.need
@@ -107,7 +107,7 @@ class TransactionTile extends StatelessWidget {
                             : AppColors.warning,
                   )
                 else
-                  _Badge(
+                  const _Badge(
                     label: '⏳ Analiz Bekliyor',
                     color: AppColors.surfaceLight,
                     textColor: AppColors.textTertiary,

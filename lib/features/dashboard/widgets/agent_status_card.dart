@@ -55,7 +55,7 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: config.borderColor.withOpacity(0.4),
+            color: config.borderColor.withValues(alpha: 0.4),
             width: 1,
           ),
         ),
@@ -120,7 +120,7 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
               : 'Döngüyü başlatmak için FAB\'a bas',
           icon: Icons.smart_toy_outlined,
           iconColor: AppColors.accent,
-          iconBg: AppColors.accent.withOpacity(0.15),
+          iconBg: AppColors.accent.withValues(alpha: 0.15),
           borderColor: AppColors.accent,
         ),
       OrchestratorStateCollecting() => _CardConfig(
@@ -128,7 +128,7 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
           subtitle: 'Banka işlemleri çekiliyor',
           icon: Icons.cloud_download_outlined,
           iconColor: AppColors.info,
-          iconBg: AppColors.info.withOpacity(0.15),
+          iconBg: AppColors.info.withValues(alpha: 0.15),
           borderColor: AppColors.info,
         ),
       OrchestratorStateAnalyzing a => _CardConfig(
@@ -136,7 +136,7 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
           subtitle: '${a.collectedCount} yeni işlem kategorize ediliyor',
           icon: Icons.auto_awesome,
           iconColor: AppColors.accent,
-          iconBg: AppColors.accent.withOpacity(0.15),
+          iconBg: AppColors.accent.withValues(alpha: 0.15),
           borderColor: AppColors.accent,
         ),
       OrchestratorStateActing a => _CardConfig(
@@ -144,7 +144,7 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
           subtitle: '${a.analyzedCount} işlem analiz edildi',
           icon: Icons.flash_on,
           iconColor: AppColors.warning,
-          iconBg: AppColors.warning.withOpacity(0.15),
+          iconBg: AppColors.warning.withValues(alpha: 0.15),
           borderColor: AppColors.warning,
         ),
       OrchestratorStateCompleted() => _CardConfig(
@@ -152,7 +152,7 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
           subtitle: 'Tüm ajanlar başarıyla çalıştı',
           icon: Icons.check_circle_outline,
           iconColor: AppColors.success,
-          iconBg: AppColors.success.withOpacity(0.15),
+          iconBg: AppColors.success.withValues(alpha: 0.15),
           borderColor: AppColors.success,
         ),
       OrchestratorStateError e => _CardConfig(
@@ -160,7 +160,7 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
           subtitle: e.message,
           icon: Icons.error_outline,
           iconColor: AppColors.danger,
-          iconBg: AppColors.danger.withOpacity(0.15),
+          iconBg: AppColors.danger.withValues(alpha: 0.15),
           borderColor: AppColors.danger,
         ),
     };

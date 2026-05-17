@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/models/agent_log_entry.dart';
 import '../../core/providers.dart';
 import 'widgets/agent_flow_diagram.dart';
+import 'widgets/agent_metrics_card.dart';
 import 'widgets/log_entry_card.dart';
 
 /// Ajan aktivite ve karar şeffaflık merkezi.
@@ -72,6 +73,12 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
           // Akış diyagramı
           const AgentFlowDiagram(),
           const SizedBox(height: 8),
+
+          // Bugünkü metrikler
+          logsAsync.maybeWhen(
+            data: (logs) => AgentMetricsCard(logs: logs),
+            orElse: () => const SizedBox.shrink(),
+          ),
 
           // Ajan filtre çipleri
           SingleChildScrollView(
@@ -227,7 +234,7 @@ class _AgentChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.accent.withOpacity(0.2)
+              ? AppColors.accent.withValues(alpha: 0.2)
               : AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(

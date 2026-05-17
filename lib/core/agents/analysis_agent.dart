@@ -76,24 +76,80 @@ class AnalysisAgent {
       );
     }
 
-    logCallback(
-      'analysis',
-      '${unanalyzed.length} işlem Gemini\'ye gönderiliyor...',
-      LogLevel.info,
-    );
-
     var analyzedCount = 0;
     var failedCount = 0;
     final distribution = <TransactionCategory, int>{};
 
-    // Adım 2: Her işlem için Gemini analizi
-    for (var i = 0; i < unanalyzed.length; i++) {
-      final tx = unanalyzed[i];
+    // Adım 2: Cache kontrolü — aynı merchant daha önce analiz edildiyse Gemini'ye gitme
+    final needsGemini = <Transaction>[];
 
-      try {
-        final analysis = await _gemini.analyzeTransaction(tx);
+    for (final tx in unanalyzed) {
+      final cached =
+          await _dbHelper.getCachedAnalysisByDescription(tx.description);
+      if (cached != null) {
+        try {
+          final category = TransactionCategory.values.byName(cached['category']!);
+          final type = TransactionType.values.byName(cached['type']!);
+          await _dbHelper.updateTransactionAnalysis(
+              tx.id, category, type, cached['reason']!);
+          distribution[category] = (distribution[category] ?? 0) + 1;
+          analyzedCount++;
+        } catch (_) {
+          needsGemini.add(tx);
+        }
+      } else {
+        needsGemini.add(tx);
+      }
+    }
 
-        // Veritabanını güncelle
+    final cachedCount = analyzedCount;
+    if (cachedCount > 0) {
+      logCallback(
+        'analysis',
+        '$cachedCount işlem önbellekten kategorize edildi',
+        LogLevel.info,
+      );
+    }
+
+    if (needsGemini.isEmpty) {
+      stopwatch.stop();
+      logCallback(
+        'analysis',
+        '$analyzedCount işlem analiz edildi — Gemini çağrısı gerekmedi',
+        LogLevel.success,
+      );
+      return AnalysisResult(
+        analyzedCount: analyzedCount,
+        failedCount: 0,
+        categoryDistribution: distribution,
+        durationMs: stopwatch.elapsedMilliseconds,
+      );
+    }
+
+    logCallback(
+      'analysis',
+      '${needsGemini.length} yeni işlem Gemini\'ye gönderiliyor (model: ${_gemini.activeModel})...',
+      LogLevel.info,
+    );
+
+    // Adım 3: Kalan işlemleri tek API çağrısında Gemini'ye gönder (batch)
+    try {
+      final results = await _gemini.analyzeTransactionsBatch(needsGemini);
+
+      for (var i = 0; i < needsGemini.length; i++) {
+        final tx = needsGemini[i];
+        final analysis = results[i];
+
+        if (analysis == null) {
+          failedCount++;
+          logCallback(
+            'analysis',
+            '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" batch\'te yanıt gelmedi',
+            LogLevel.warning,
+          );
+          continue;
+        }
+
         await _dbHelper.updateTransactionAnalysis(
           tx.id,
           analysis.category,
@@ -101,57 +157,90 @@ class AnalysisAgent {
           analysis.reason,
         );
 
-        // Dağılım istatistiğini güncelle
         distribution[analysis.category] =
             (distribution[analysis.category] ?? 0) + 1;
-
         analyzedCount++;
-
-        // İlerleme logu (her 5 işlemde bir)
-        if ((i + 1) % 5 == 0 || i == unanalyzed.length - 1) {
-          logCallback(
-            'analysis',
-            '${i + 1}/${unanalyzed.length} işlem analiz edildi',
-            LogLevel.info,
-          );
-        }
-      } on GeminiException catch (e) {
-        failedCount++;
-        final short =
-            e.message.length > 80 ? '${e.message.substring(0, 80)}…' : e.message;
+      }
+    } on GeminiException catch (e) {
+      if (e.isQuotaExceeded) {
+        final retryHint = e.retryAfterSeconds != null
+            ? '${e.retryAfterSeconds}sn sonra'
+            : '1–2 dk sonra';
         logCallback(
           'analysis',
-          '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
+          'Kota: ${e.message} → ${needsGemini.length} işlem bekliyor ($retryHint tekrar dene)',
           LogLevel.warning,
         );
-
-        // Kota dolduysa kalan işlemleri zorla kategorize etme — beklet
-        if (e.isQuotaExceeded) {
-          final remaining = unanalyzed.length - i;
-          logCallback(
-            'analysis',
-            'Gemini kotası doldu — $remaining işlem analiz bekliyor (1–2 dk sonra tekrar dene)',
-            LogLevel.warning,
-          );
-          break;
-        }
-      } catch (e) {
-        failedCount++;
-        final errMsg =
-            e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
-        final short =
-            errMsg.length > 80 ? '${errMsg.substring(0, 80)}…' : errMsg;
-        logCallback(
-          'analysis',
-          '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
-          LogLevel.warning,
+        stopwatch.stop();
+        return AnalysisResult(
+          analyzedCount: cachedCount,
+          failedCount: needsGemini.length,
+          categoryDistribution: {},
+          durationMs: stopwatch.elapsedMilliseconds,
         );
       }
-
-      // Rate limit aşımını önlemek için bekleme
-      if (i < unanalyzed.length - 1) {
-        await Future.delayed(
-            Duration(milliseconds: _kDelayBetweenRequestsMs));
+      // Batch başarısız olduysa tek tek dene
+      logCallback(
+        'analysis',
+        'Batch analiz başarısız, tek tek deneniyor: ${e.message}',
+        LogLevel.warning,
+      );
+      for (var i = 0; i < needsGemini.length; i++) {
+        final tx = needsGemini[i];
+        try {
+          final analysis = await _gemini.analyzeTransaction(tx);
+          await _dbHelper.updateTransactionAnalysis(
+            tx.id,
+            analysis.category,
+            analysis.type,
+            analysis.reason,
+          );
+          distribution[analysis.category] =
+              (distribution[analysis.category] ?? 0) + 1;
+          analyzedCount++;
+        } on GeminiException catch (e2) {
+          failedCount++;
+          if (e2.isQuotaExceeded) {
+            logCallback('analysis', 'Kota doldu, kalan işlemler bekleniyor', LogLevel.warning);
+            break;
+          }
+        } catch (_) {
+          failedCount++;
+        }
+        if (i < needsGemini.length - 1) {
+          await Future.delayed(const Duration(milliseconds: _kDelayBetweenRequestsMs));
+        }
+      }
+    } catch (e) {
+      final errMsg = e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
+      logCallback(
+        'analysis',
+        'Beklenmedik hata, tek tek deneniyor: ${errMsg.length > 60 ? '${errMsg.substring(0, 60)}…' : errMsg}',
+        LogLevel.warning,
+      );
+      for (var i = 0; i < needsGemini.length; i++) {
+        final tx = needsGemini[i];
+        try {
+          final analysis = await _gemini.analyzeTransaction(tx);
+          await _dbHelper.updateTransactionAnalysis(
+              tx.id, analysis.category, analysis.type, analysis.reason);
+          distribution[analysis.category] =
+              (distribution[analysis.category] ?? 0) + 1;
+          analyzedCount++;
+        } on GeminiException catch (e2) {
+          failedCount++;
+          if (e2.isQuotaExceeded) {
+            logCallback('analysis', 'Kota doldu, kalan işlemler bekleniyor',
+                LogLevel.warning);
+            break;
+          }
+        } catch (_) {
+          failedCount++;
+        }
+        if (i < needsGemini.length - 1) {
+          await Future.delayed(
+              const Duration(milliseconds: _kDelayBetweenRequestsMs));
+        }
       }
     }
 

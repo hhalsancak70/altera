@@ -7,12 +7,14 @@ class AppConstants {
   // --- GEMİNİ API ---
 
   /// Birincil Gemini modeli; başarısız olursa [kGeminiModelFallbacks] denenir
-  static const String kGeminiModelPrimary = 'gemini-2.0-flash';
+  /// 1.5-flash: en kararlı, her hesapta çalışır, 15 RPM/1500 RPD
+  static const String kGeminiModelPrimary = 'gemini-1.5-flash';
 
   /// Birincil model kullanılamazsa sırayla denenecek modeller
   static const List<String> kGeminiModelFallbacks = [
-    'gemini-2.0-flash-001',
-    'gemini-2.5-flash',
+    'gemini-1.5-flash-8b', // daha küçük model, daha gevşek limit
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash',
   ];
 
   /// Gemini API için maksimum token sayısı - maliyet kontrolü
@@ -28,8 +30,9 @@ class AppConstants {
   /// Rate limit hatasında varsayılan bekleme (ms) — API retry-after parse edilemezse
   static const int kRateLimitDelayMs = 15000;
 
-  /// Bir ajan döngüsünde maksimum analiz edilecek işlem sayısı (free tier için düşük)
-  static const int kMaxTransactionsPerCycle = 3;
+  /// Bir ajan döngüsünde maksimum analiz edilecek işlem sayısı
+  /// Batch analiz ile tek API çağrısında hepsi gönderilir
+  static const int kMaxTransactionsPerCycle = 10;
 
   // --- BÜTÇE ---
 
@@ -42,7 +45,17 @@ class AppConstants {
   // --- AJAN ---
 
   /// Ajan döngüsü kontrol aralığı (saniye) - otomatik mod
-  static const int kAgentCycleIntervalSeconds = 30;
+  /// 5 dakika: free tier (1500 RPD) ile günde ~288 çağrı, güvenli aralık
+  static const int kAgentCycleIntervalSeconds = 300;
+
+  /// AI butonlarına cooldown süresi (saniye) — kullanıcı spam'i önler
+  static const int kAiButtonCooldownSeconds = 30;
+
+  /// Günlük Gemini API çağrı limiti (free tier: 1500 RPD)
+  static const int kDailyApiCallLimit = 1500;
+
+  /// Günlük çağrı uyarı eşiği (%80)
+  static const int kDailyApiCallWarnThreshold = 1200;
 
   /// Ajan log maksimum kayıt sayısı - eski kayıtlar otomatik silinir
   static const int kMaxAgentLogEntries = 500;

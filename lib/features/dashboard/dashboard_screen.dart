@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/providers.dart';
 import '../../core/services/gemini_service.dart';
 import 'widgets/agent_status_card.dart';
+import 'widgets/gemini_insight_card.dart';
 import 'widgets/monthly_summary_card.dart';
 import 'widgets/spending_pie_chart.dart';
 import 'widgets/budget_progress_section.dart';
@@ -14,11 +15,16 @@ import 'widgets/recent_transactions_section.dart';
 
 /// Ana kontrol paneli ekranı.
 /// Kullanıcının günlük finans özetini gösterir ve ajan durumunu anlık yansıtır.
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  @override
+  Widget build(BuildContext context) {
     final orchestratorState = ref.watch(orchestratorProvider);
 
     return Scaffold(
@@ -47,9 +53,9 @@ class DashboardScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.accent.withOpacity(0.15),
+                color: AppColors.accent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+                border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
               ),
               child: const Text(
                 'Gemini 2.0',
@@ -63,6 +69,11 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.chat_outlined),
+            onPressed: () => context.push('/ai-chat'),
+            tooltip: 'AI Asistan',
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push('/settings'),
@@ -86,6 +97,8 @@ class DashboardScreen extends ConsumerWidget {
             AgentStatusCard(),
             SizedBox(height: 8),
             MonthlySummaryCard(),
+            SizedBox(height: 8),
+            GeminiInsightCard(),
             SizedBox(height: 8),
             SpendingPieChart(),
             SizedBox(height: 8),
@@ -114,6 +127,7 @@ class DashboardScreen extends ConsumerWidget {
                   return;
                 }
                 await ref.read(orchestratorProvider.notifier).runOnce();
+                if (!mounted) return;
                 ref.invalidate(currentMonthTransactionsProvider);
                 ref.invalidate(recentTransactionsProvider);
                 ref.invalidate(monthlySpendingProvider);

@@ -2,7 +2,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -10,7 +9,9 @@ import '../../core/constants/app_constants.dart';
 import '../../core/database/hive_boxes.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/providers.dart';
+import '../../core/services/api_quota_tracker.dart';
 import '../../core/services/gemini_service.dart';
+import '../../core/services/sample_data_seeder.dart';
 import '../../core/utils/app_snackbar.dart';
 import '../../core/utils/api_key_storage.dart';
 
@@ -74,7 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             // Profil bölümü
-            _SectionTitle(title: 'Profil'),
+            const _SectionTitle(title: 'Profil'),
             _SettingsCard(
               children: [
                 _EditableItem(
@@ -92,7 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
 
             // Risk profili
-            _SectionTitle(title: 'Risk Profili'),
+            const _SectionTitle(title: 'Risk Profili'),
             _SettingsCard(
               children: RiskProfile.values
                   .map((rp) => _RiskProfileOption(
@@ -104,7 +105,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
 
             // Gemini API
-            _SectionTitle(title: 'Gemini API'),
+            const _SectionTitle(title: 'Gemini API'),
             _SettingsCard(
               children: [
                 Padding(
@@ -201,6 +202,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           fontSize: 11,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      const _ApiQuotaIndicator(),
                     ],
                   ),
                 ),
@@ -208,12 +211,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
 
             // Ajan ayarları
-            _SectionTitle(title: 'Ajan'),
+            const _SectionTitle(title: 'Ajan'),
             _SettingsCard(
               children: [
                 _ToggleItem(
                   label: 'Otomatik Ajan Döngüsü',
-                  subtitle: 'Her 30 saniyede bir çalışır',
+                  subtitle: 'Her 5 dakikada bir çalışır (API kotası dostu)',
                   value: ref.watch(orchestratorProvider.notifier).isAutoModeActive,
                   onChanged: (v) {
                     if (v) {
@@ -227,8 +230,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
 
+
             // Veri yönetimi
-            _SectionTitle(title: 'Veri'),
+            const _SectionTitle(title: 'Veri'),
             _SettingsCard(
               children: [
                 _ActionItem(
@@ -236,6 +240,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: Icons.upload_file_outlined,
                   color: AppColors.accent,
                   onTap: () => Navigator.pushNamed(context, '/import'),
+                ),
+                const _Separator(),
+                _ActionItem(
+                  label: 'Örnek Veri Yükle (Test)',
+                  icon: Icons.science_outlined,
+                  color: AppColors.accent,
+                  onTap: () => _loadSampleData(context),
                 ),
                 const _Separator(),
                 _ActionItem(
@@ -255,13 +266,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
 
             // Hakkında
-            _SectionTitle(title: 'Hakkında'),
-            _SettingsCard(
+            const _SectionTitle(title: 'Hakkında'),
+            const _SettingsCard(
               children: [
                 _InfoItem(label: 'Uygulama', value: 'ALTERA v1.0.0'),
-                const _Separator(),
+                _Separator(),
                 _InfoItem(label: 'AI', value: 'Gemini 2.0 Flash'),
-                const _Separator(),
+                _Separator(),
                 _InfoItem(label: 'Etkinlik', value: 'BTK Hackathon 2026'),
               ],
             ),
@@ -427,6 +438,60 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await box.put(
           AppConstants.kHiveKeyUserProfile, jsonEncode(updated.toJson()));
       ref.invalidate(userProfileProvider);
+    }
+  }
+
+  Future<void> _loadSampleData(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Örnek Veri Yükle',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text(
+          '25 gerçekçi işlem (Migros, Netflix, Maaş, Uber vb.) ve 6 bütçe limiti yüklenecek.\n\n'
+          'İşlemler analiz edilmemiş — sonra "Ajan Döngüsü" butonuna basarak '
+          'Gemini\'nin doğru kategorize edip etmediğini test edebilirsin.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yükle'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    showAppSnackBar('Örnek veri yükleniyor...',
+        backgroundColor: AppColors.accent);
+
+    try {
+      final result = await SampleDataSeeder.seed(ref.read(dbHelperProvider));
+      ref.invalidate(currentMonthTransactionsProvider);
+      ref.invalidate(allTransactionsProvider);
+      ref.invalidate(recentTransactionsProvider);
+      ref.invalidate(monthlySpendingProvider);
+      ref.invalidate(monthlySummaryProvider);
+      ref.invalidate(currentMonthBudgetsProvider);
+
+      if (mounted) {
+        showAppSnackBar(
+          '${result.transactions} işlem + ${result.budgets} bütçe yüklendi ✓\nŞimdi Dashboard\'dan "Ajan Döngüsü" başlat.',
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 5),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar('Hata: $e', backgroundColor: AppColors.danger);
+      }
     }
   }
 
@@ -599,7 +664,7 @@ class _ToggleItem extends StatelessWidget {
               color: AppColors.textSecondary, fontSize: 12)),
       value: value,
       onChanged: onChanged,
-      activeColor: AppColors.accent,
+      activeThumbColor: AppColors.accent,
     );
   }
 }
@@ -659,6 +724,130 @@ class _RiskProfileOption extends StatelessWidget {
           ? const Icon(Icons.check_circle, color: AppColors.accent, size: 20)
           : null,
       onTap: onSelect,
+    );
+  }
+}
+
+/// Bugünkü Gemini API çağrı sayısını + son hatayı gösterir.
+class _ApiQuotaIndicator extends StatefulWidget {
+  const _ApiQuotaIndicator();
+
+  @override
+  State<_ApiQuotaIndicator> createState() => _ApiQuotaIndicatorState();
+}
+
+class _ApiQuotaIndicatorState extends State<_ApiQuotaIndicator> {
+  @override
+  Widget build(BuildContext context) {
+    final used = ApiQuotaTracker.todayCount();
+    final failed = ApiQuotaTracker.todayFailedCount();
+    const limit = AppConstants.kDailyApiCallLimit;
+    final ratio = (used / limit).clamp(0.0, 1.0);
+    final nearLimit = ApiQuotaTracker.isNearLimit();
+    final reached = ApiQuotaTracker.isLimitReached();
+    final lastError = ApiQuotaTracker.lastError();
+
+    final color = reached
+        ? AppColors.danger
+        : nearLimit
+            ? AppColors.warning
+            : AppColors.success;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics_outlined, color: color, size: 14),
+              const SizedBox(width: 6),
+              const Text(
+                'Bugünkü API Kullanımı',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$used / $limit',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () async {
+                  await ApiQuotaTracker.reset();
+                  if (mounted) setState(() {});
+                },
+                child: const Icon(Icons.refresh,
+                    size: 14, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 4,
+              backgroundColor: AppColors.primary,
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+          if (failed > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              '$failed başarısız çağrı (kota/hata)',
+              style: const TextStyle(
+                color: AppColors.warning,
+                fontSize: 10,
+              ),
+            ),
+          ],
+          if (lastError != null) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'Son hata:',
+              style: TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              lastError,
+              style: const TextStyle(
+                color: AppColors.danger,
+                fontSize: 9,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+          if (reached) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'Günlük limit doldu. Yarın sıfırlanacak.',
+              style: TextStyle(color: AppColors.danger, fontSize: 10),
+            ),
+          ] else if (nearLimit) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Limite yaklaşıyorsun (${ApiQuotaTracker.remaining()} kaldı).',
+              style: const TextStyle(color: AppColors.warning, fontSize: 10),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -192,9 +192,9 @@ class _WelcomePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 40),
-          _FeatureRow(icon: Icons.analytics_outlined, text: 'Harcamalarını otomatik kategorize eder'),
-          _FeatureRow(icon: Icons.account_balance_wallet_outlined, text: 'Bütçe aşımında uyarı ve öneri verir'),
-          _FeatureRow(icon: Icons.trending_up, text: 'Tasarruflarını yatırıma yönlendirir'),
+          const _FeatureRow(icon: Icons.analytics_outlined, text: 'Harcamalarını otomatik kategorize eder'),
+          const _FeatureRow(icon: Icons.account_balance_wallet_outlined, text: 'Bütçe aşımında uyarı ve öneri verir'),
+          const _FeatureRow(icon: Icons.trending_up, text: 'Tasarruflarını yatırıma yönlendirir'),
         ],
       ),
     );
@@ -217,7 +217,7 @@ class _FeatureRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.15),
+              color: AppColors.accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: AppColors.accent, size: 18),
@@ -370,7 +370,7 @@ class _ProfilePage extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: selectedRisk == rp
-                          ? AppColors.accent.withOpacity(0.1)
+                          ? AppColors.accent.withValues(alpha: 0.1)
                           : AppColors.surface,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(

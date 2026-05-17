@@ -187,7 +187,7 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
     );
 
     await Future.delayed(
-        Duration(milliseconds: AppConstants.kAgentCompletedDelayMs));
+        const Duration(milliseconds: AppConstants.kAgentCompletedDelayMs));
 
     if (mounted) {
       state = OrchestratorStateIdle(
@@ -202,7 +202,7 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
   void startAutoMode() {
     _autoTimer?.cancel();
     _autoTimer = Timer.periodic(
-      Duration(seconds: AppConstants.kAgentCycleIntervalSeconds),
+      const Duration(seconds: AppConstants.kAgentCycleIntervalSeconds),
       (_) => runOnce(),
     );
     _log('orchestrator', 'Otomatik mod aktif', LogLevel.info);

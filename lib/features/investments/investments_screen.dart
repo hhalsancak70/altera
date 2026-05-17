@@ -126,7 +126,7 @@ class InvestmentsScreen extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.2),
+                          color: AppColors.primary.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -288,7 +288,7 @@ class _InvestmentFundCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: fund.isRecommended
-                ? AppColors.accent.withOpacity(0.3)
+                ? AppColors.accent.withValues(alpha: 0.3)
                 : const Color(0xFF1F2937),
             width: fund.isRecommended ? 1.5 : 1,
           ),
@@ -321,7 +321,7 @@ class _InvestmentFundCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: AppColors.accent.withOpacity(0.15),
+                                color: AppColors.accent.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: const Text(
@@ -385,7 +385,7 @@ class _InvestmentFundCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: _riskColor.withOpacity(0.15),
+                    color: _riskColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(

@@ -93,17 +93,17 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
           budgetsAsync.when(
             data: (budgets) {
               if (budgets.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(32),
+                return const Padding(
+                  padding: EdgeInsets.all(32),
                   child: Column(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.account_balance_wallet_outlined,
                         color: AppColors.textSecondary,
                         size: 48,
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
+                      SizedBox(height: 16),
+                      Text(
                         'Henüz bütçe tanımlanmadı',
                         style: TextStyle(
                           color: AppColors.textPrimary,
@@ -111,8 +111,8 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
+                      SizedBox(height: 8),
+                      Text(
                         'Kategori bazlı bütçe limitleri ekleyerek\nharcamalarını takip edebilirsin.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -215,7 +215,7 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                           horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: isSel
-                            ? AppColors.accent.withOpacity(0.2)
+                            ? AppColors.accent.withValues(alpha: 0.2)
                             : AppColors.surfaceLight,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
@@ -298,9 +298,9 @@ class _BudgetCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: budget.status == BudgetStatus.danger
-                ? AppColors.danger.withOpacity(0.3)
+                ? AppColors.danger.withValues(alpha: 0.3)
                 : budget.status == BudgetStatus.warning
-                    ? AppColors.warning.withOpacity(0.3)
+                    ? AppColors.warning.withValues(alpha: 0.3)
                     : const Color(0xFF1F2937),
             width: 1,
           ),
@@ -313,7 +313,7 @@ class _BudgetCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.danger.withOpacity(0.1),
+                  color: AppColors.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(

@@ -152,7 +152,7 @@ class AppTheme {
         // Chip - etiket ve filtre öğeleri
         chipTheme: ChipThemeData(
           backgroundColor: AppColors.surfaceLight,
-          selectedColor: AppColors.accent.withOpacity(0.2),
+          selectedColor: AppColors.accent.withValues(alpha: 0.2),
           labelStyle: const TextStyle(
             fontFamily: _bodyFont,
             fontSize: 12,

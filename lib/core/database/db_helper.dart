@@ -321,6 +321,26 @@ class DbHelper {
     await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Aynı açıklamayla daha önce analiz edilmiş bir işlemin sonucunu döndürür.
+  /// Aynı merchant tekrar geldiğinde Gemini'ye gitmeyi önler (kota tasarrufu).
+  Future<Map<String, String>?> getCachedAnalysisByDescription(
+      String description) async {
+    final db = await database;
+    final maps = await db.query(
+      'transactions',
+      columns: ['category', 'type', 'ai_reason'],
+      where: 'description = ? AND is_analyzed = 1',
+      whereArgs: [description],
+      limit: 1,
+    );
+    if (maps.isEmpty) return null;
+    return {
+      'category': maps.first['category'] as String,
+      'type': maps.first['type'] as String,
+      'reason': (maps.first['ai_reason'] as String?) ?? '',
+    };
+  }
+
   /// Belirli bir ID'nin DB'de var olup olmadığını kontrol eder
   Future<bool> transactionExists(String id) async {
     final db = await database;
