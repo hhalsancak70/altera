@@ -215,6 +215,9 @@ class InvestmentsScreen extends ConsumerWidget {
                       _AiAgentCard(assets: assets),
 
                       const SizedBox(height: 24),
+                      _MarketPulseCard(assets: assets, isUsd: isUsd, usdRate: usdRate),
+
+                      const SizedBox(height: 24),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
@@ -447,14 +450,109 @@ class _SavingsCard extends ConsumerWidget {
 }
 
 // ─── Gemini Yapay Zekâ Kartı Bileşeni ──────────────────────────────────────────
-class _AiAgentCard extends ConsumerWidget {
+class _AiAgentCard extends ConsumerStatefulWidget {
   final List<Asset> assets;
   const _AiAgentCard({required this.assets});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Gemini analiz sağlayıcısını dinliyoruz
-    final analysisAsync = ref.watch(portfolioAnalysisProvider(assets));
+  ConsumerState<_AiAgentCard> createState() => _AiAgentCardState();
+}
+
+class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
+  /// Bir kez hesaplanmış bağlam — canlı fiyatlar yüklenince set edilir.
+  String? _contextKey;
+  bool _autoTriggered = false;
+
+  /// Portföydeki her varlık için canlı fiyat + P&L bağlamı oluşturur.
+  String _buildContext(
+    List<Asset> assets,
+    Map<String, Map<String, dynamic>?> liveMap,
+    double usdRate,
+  ) {
+    final buf = StringBuffer();
+    double totalCostTl = 0;
+    double totalCurrentTl = 0;
+    double totalDailyDeltaTl = 0;
+
+    for (final a in assets) {
+      final data = liveMap[a.symbol];
+      if (data == null) continue;
+
+      final price = data['price'] as double;
+      final changePct = data['changePercent'] as double;
+      final livePriceTl = _getLiveTlPrice(data, a.symbol, usdRate).livePriceTl;
+      final currentValTl = a.units * livePriceTl;
+      final profitTl = currentValTl - a.totalCost;
+      final profitPct = a.totalCost > 0 ? (profitTl / a.totalCost) * 100 : 0.0;
+      final prevValTl = currentValTl / (1 + changePct / 100);
+      final dailyDeltaTl = currentValTl - prevValTl;
+
+      totalCostTl += a.totalCost;
+      totalCurrentTl += currentValTl;
+      totalDailyDeltaTl += dailyDeltaTl;
+
+      final profitSign = profitTl >= 0 ? '+' : '';
+      final dailySign = dailyDeltaTl >= 0 ? '+' : '';
+
+      buf.writeln(
+        '• ${a.name}: '
+        'maliyet ₺${a.totalCost.toStringAsFixed(0)}, '
+        'güncel ₺${currentValTl.toStringAsFixed(0)} '
+        '($profitSign₺${profitTl.toStringAsFixed(0)}, $profitSign${profitPct.toStringAsFixed(1)}% toplam kâr/zarar), '
+        'bugün $dailySign₺${dailyDeltaTl.toStringAsFixed(0)} ($dailySign${changePct.toStringAsFixed(2)}%)',
+      );
+    }
+
+    final totalProfitTl = totalCurrentTl - totalCostTl;
+    final totalDailySign = totalDailyDeltaTl >= 0 ? '+' : '';
+    buf.writeln(
+      '\nTOPLAM: maliyet ₺${totalCostTl.toStringAsFixed(0)}, '
+      'güncel ₺${totalCurrentTl.toStringAsFixed(0)}, '
+      'toplam kâr/zarar ${totalProfitTl >= 0 ? '+' : ''}₺${totalProfitTl.toStringAsFixed(0)}, '
+      'bugün $totalDailySign₺${totalDailyDeltaTl.toStringAsFixed(0)}',
+    );
+
+    return buf.toString();
+  }
+
+  void _refresh(String ctx) {
+    ref.invalidate(portfolioInsightsProvider(ctx));
+    setState(() => _contextKey = ctx);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.assets.isEmpty) return const SizedBox.shrink();
+
+    final usdRate = ref.watch(yahooFinanceProvider('TRY=X'))
+            .valueOrNull?['price'] as double? ??
+        1.0;
+
+    // Tüm portföy sembollerinin canlı verilerini topla
+    final liveMap = <String, Map<String, dynamic>?>{};
+    bool anyLoading = false;
+    for (final a in widget.assets) {
+      final async = ref.watch(yahooFinanceProvider(a.symbol));
+      liveMap[a.symbol] = async.valueOrNull;
+      if (async.isLoading) anyLoading = true;
+    }
+
+    // Veriler ilk yüklendiğinde otomatik tetikle (bir kez)
+    if (!anyLoading && !_autoTriggered && liveMap.values.any((v) => v != null)) {
+      _autoTriggered = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _contextKey = _buildContext(widget.assets, liveMap, usdRate);
+        });
+      });
+    }
+
+    final insightsAsync = _contextKey != null
+        ? ref.watch(portfolioInsightsProvider(_contextKey!))
+        : null;
+
+    final isLoading = anyLoading || insightsAsync == null || insightsAsync.isLoading;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -462,7 +560,10 @@ class _AiAgentCard extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [const Color(0xFF3B82F6).withOpacity(0.12), const Color(0xFF1E2746).withOpacity(0.3)],
+            colors: [
+              const Color(0xFF3B82F6).withOpacity(0.12),
+              const Color(0xFF1E2746).withOpacity(0.3),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -472,38 +573,77 @@ class _AiAgentCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Başlık ──
             Row(
               children: [
                 const Icon(Icons.auto_awesome, color: Color(0xFF3B82F6), size: 16),
                 const SizedBox(width: 8),
-                const Text(
-                  'ALTERA Enflasyon Kalkanı Ajanı',
-                  style: TextStyle(color: Color(0xFF3B82F6), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 0.3),
+                const Expanded(
+                  child: Text(
+                    'ALTERA · AL / SAT / TUT ÖNERİLERİ',
+                    style: TextStyle(
+                      color: Color(0xFF3B82F6),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ),
-                const Spacer(),
-                if (analysisAsync.isLoading)
+                if (isLoading)
                   const SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF3B82F6)),
+                    width: 12, height: 12,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 1.5, color: Color(0xFF3B82F6)),
+                  )
+                else
+                  GestureDetector(
+                    onTap: () {
+                      final ctx = _buildContext(widget.assets, liveMap, usdRate);
+                      _refresh(ctx);
+                    },
+                    child: const Icon(
+                      Icons.refresh_rounded,
+                      color: Color(0xFF3B82F6),
+                      size: 16,
+                    ),
                   ),
               ],
             ),
             const SizedBox(height: 12),
-            analysisAsync.when(
-              loading: () => const Text(
-                'Portföy yapınız inceleniyor, enflasyon kalkanı analizi oluşturuluyor...',
-                style: TextStyle(color: Color(0xFF8B95A5), fontSize: 12, fontStyle: FontStyle.italic),
+
+            // ── İçerik ──
+            if (anyLoading && _contextKey == null)
+              const Text(
+                'Canlı fiyatlar yükleniyor, analiz hazırlanıyor...',
+                style: TextStyle(
+                    color: Color(0xFF8B95A5),
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic),
+              )
+            else if (insightsAsync == null)
+              const Text(
+                'Canlı veriler bekleniyor...',
+                style: TextStyle(color: Color(0xFF8B95A5), fontSize: 12),
+              )
+            else
+              insightsAsync.when(
+                loading: () => const Text(
+                  'Ajan portföyünüzü inceliyor...',
+                  style: TextStyle(
+                      color: Color(0xFF8B95A5),
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic),
+                ),
+                error: (err, _) => Text(
+                  'Analiz yüklenemedi: $err',
+                  style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+                ),
+                data: (insight) => Text(
+                  insight,
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 12.5, height: 1.55),
+                ),
               ),
-              error: (err, __) => const Text(
-                'Ajan analizi şu an yüklenemedi. Lütfen API anahtarınızı kontrol edin.',
-                style: TextStyle(color: Color(0xFFEF4444), fontSize: 12),
-              ),
-              data: (insight) => Text(
-                insight,
-                style: const TextStyle(color: Colors.white, fontSize: 12.5, height: 1.45),
-              ),
-            ),
           ],
         ),
       ),
@@ -924,6 +1064,278 @@ class _AddAssetButton extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Piyasa Nabzı Kartı ───────────────────────────────────────────────────────
+/// Portföydeki varlıkların günlük fiyat değişimini feed olarak gösterir.
+/// Portföy boşsa sabit izleme listesindeki (USD, Altın, BIST) verileri gösterir.
+class _MarketPulseCard extends ConsumerWidget {
+  final List<Asset> assets;
+  final bool isUsd;
+  final double usdRate;
+
+  // Portföyde olmasa bile her zaman gösterilecek piyasa göstergeleri
+  static const _watchlist = [
+    {'symbol': 'TRY=X',    'name': 'Dolar / TL',    'colorHex': 0xFF22C55E},
+    {'symbol': 'GC=F',     'name': 'Altın (gram)',   'colorHex': 0xFFF59E0B},
+    {'symbol': 'XU100.IS', 'name': 'BIST 100',       'colorHex': 0xFF3B82F6},
+  ];
+
+  const _MarketPulseCard({
+    required this.assets,
+    required this.isUsd,
+    required this.usdRate,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = DateTime.now();
+    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    // Portföydeki semboller
+    final portfolioSymbols = assets.map((a) => a.symbol).toSet();
+
+    // İzleme listesinden portföyde olmayanları ekle
+    final watchEntries = _watchlist
+        .where((w) => !portfolioSymbols.contains(w['symbol']))
+        .toList();
+
+    final hasContent = assets.isNotEmpty || watchEntries.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E2746),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Başlık ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.bar_chart_rounded, color: Color(0xFF8B95A5), size: 16),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'PİYASA NABZI',
+                    style: TextStyle(
+                      color: Color(0xFF8B95A5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Günlük  •  $timeStr',
+                    style: const TextStyle(color: Color(0xFF4B5563), fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Divider(color: Color(0xFF0D1426), height: 1),
+            const SizedBox(height: 4),
+
+            if (!hasContent)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text(
+                    'Portföyünüze varlık ekleyin',
+                    style: TextStyle(color: Color(0xFF4B5563), fontSize: 13),
+                  ),
+                ),
+              )
+            else ...[
+              // ── Portföy varlıkları ──
+              for (final asset in assets)
+                _PulseRow(
+                  symbol: asset.symbol,
+                  name: asset.name,
+                  color: asset.color,
+                  positionUnits: asset.units,
+                  positionCostTl: asset.totalCost,
+                  usdRate: usdRate,
+                  isUsd: isUsd,
+                  isLast: asset == assets.last && watchEntries.isEmpty,
+                ),
+
+              // ── Sabit izleme listesi ──
+              if (watchEntries.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Divider(color: Color(0xFF0D1426), height: 16),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: Text(
+                    'PIYASA GÖSTERGELERİ',
+                    style: const TextStyle(
+                      color: Color(0xFF4B5563),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                ),
+                for (var i = 0; i < watchEntries.length; i++)
+                  _PulseRow(
+                    symbol: watchEntries[i]['symbol'] as String,
+                    name: watchEntries[i]['name'] as String,
+                    color: Color(watchEntries[i]['colorHex'] as int),
+                    positionUnits: 0,
+                    positionCostTl: 0,
+                    usdRate: usdRate,
+                    isUsd: isUsd,
+                    isLast: i == watchEntries.length - 1,
+                  ),
+              ],
+            ],
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PulseRow extends ConsumerWidget {
+  final String symbol;
+  final String name;
+  final Color color;
+  final double positionUnits;   // 0 → izleme listesi (pozisyon yok)
+  final double positionCostTl;
+  final double usdRate;
+  final bool isUsd;
+  final bool isLast;
+
+  const _PulseRow({
+    required this.symbol,
+    required this.name,
+    required this.color,
+    required this.positionUnits,
+    required this.positionCostTl,
+    required this.usdRate,
+    required this.isUsd,
+    required this.isLast,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveAsync = ref.watch(yahooFinanceProvider(symbol));
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, isLast ? 0 : 0),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 11),
+            child: Row(
+              children: [
+                // Renk noktası
+                Container(
+                  width: 7, height: 7,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 10),
+
+                // Varlık adı
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+
+                // Canlı veri
+                liveAsync.when(
+                  loading: () => const SizedBox(
+                    width: 12, height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.2, color: Colors.white24),
+                  ),
+                  error: (_, __) => const Text(
+                    'Veri yok',
+                    style: TextStyle(color: Color(0xFF4B5563), fontSize: 11),
+                  ),
+                  data: (data) {
+                    final changePct = data['changePercent'] as double;
+                    final price = data['price'] as double;
+                    final isUp = changePct >= 0;
+                    final clr = isUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+                    final sign = isUp ? '+' : '';
+
+                    // Pozisyon varsa günlük kazanç/kayıp hesapla
+                    String? positionLine;
+                    if (positionUnits > 0) {
+                      final livePriceTl = _getLiveTlPrice(data, symbol, usdRate).livePriceTl;
+                      final currentValTl = positionUnits * livePriceTl;
+                      final previousValTl = currentValTl / (1 + changePct / 100);
+                      final dailyDeltaTl = currentValTl - previousValTl;
+                      final displayDelta = isUsd ? (dailyDeltaTl / usdRate) : dailyDeltaTl;
+                      final prefix = isUsd ? '\$' : '₺';
+                      final deltaSign = dailyDeltaTl >= 0 ? '+' : '';
+                      positionLine = '$deltaSign$prefix${displayDelta.toStringAsFixed(0)} bugün';
+                    }
+
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (positionLine != null) ...[
+                          Text(
+                            positionLine,
+                            style: TextStyle(
+                              color: isUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        // % değişim rozeti
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: clr.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isUp ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                                color: clr, size: 14,
+                              ),
+                              Text(
+                                '$sign${changePct.toStringAsFixed(2)}%',
+                                style: TextStyle(
+                                  color: clr,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          if (!isLast)
+            const Divider(color: Color(0xFF0D1426), height: 1),
+        ],
       ),
     );
   }

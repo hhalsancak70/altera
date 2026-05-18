@@ -17,7 +17,8 @@ class AppConstants {
   static const int kGeminiMaxRetries = 2;
 
   /// Rate limit hatasında varsayılan bekleme (ms) — API retry-after parse edilemezse
-  static const int kRateLimitDelayMs = 30000;
+  /// Free tier 1 dakikalık pencere; 65s ile pencerenin tamamen geçmesini garantile
+  static const int kRateLimitDelayMs = 65000;
 
   /// Bir ajan döngüsünde maksimum analiz edilecek işlem sayısı
   static const int kMaxTransactionsPerCycle = 8;

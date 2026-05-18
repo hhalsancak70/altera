@@ -42,7 +42,7 @@ dependencies:
   go_router: ^14.0.0
 
   # Para formatı + tarih yerelleştirme (TL, Türkçe tarih)
-  intl: 0.19.0
+  intl: ^0.20.2
 
   # Gemini API key güvenli saklama (Keychain/Keystore)
   flutter_secure_storage: ^9.2.2

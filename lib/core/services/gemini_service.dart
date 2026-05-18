@@ -122,8 +122,9 @@ SADECE geçerli JSON döndür, başka hiçbir şey yazma:
         if (attempt == AppConstants.kGeminiMaxRetries - 1) {
           throw GeminiException(_summarizeError(errStr));
         }
-        // API'nin belirttiği retry süresini parse et; yoksa varsayılan bekle
-        final delayMs = _retryDelayMs(errStr);
+        // API'nin belirttiği retry süresini parse et; her denemede iki katına çıkar
+        final baseDelay = _retryDelayMs(errStr);
+        final delayMs = baseDelay * (attempt + 1);
         await Future.delayed(Duration(milliseconds: delayMs));
       }
     }
@@ -274,71 +275,100 @@ SADECE geçerli JSON döndür (bulamazsan null döndür):
     }
   }
 
-  /// YENİ EKLENEN: Kullanıcının mevcut portföyünü analiz edip enflasyon kalkanı önerisi sunar.
+  /// Canlı fiyat + günlük P&L verisiyle portföy önerileri üretir.
   ///
-  /// [assets] Kullanıcının portföyündeki varlıklar listesi
-  Future<String> analyzePortfolio(List<Asset> assets) async {
-    if (assets.isEmpty) {
-      return 'Portföyün şu an boş. Hemen bir varlık ekleyerek enflasyona karşı korunmaya başla!';
-    }
-
-    String portfolioText = '';
-    double totalTl = 0;
-    for (var a in assets) {
-      portfolioText += '- ${a.name}: ${a.totalCost.toStringAsFixed(0)} TL maliyetle alınmış.\n';
-      totalTl += a.totalCost;
-    }
-
+  /// [portfolioContext] Önceden hesaplanmış, her varlığın güncel değer/kazanç
+  /// bilgisini içeren metin. Widget tarafından oluşturulur.
+  Future<String> generatePortfolioInsights(String portfolioContext) async {
     final prompt = '''
-Sen ALTERA uygulamasının "Enflasyon Kalkanı Yatırım Ajanı"sın. 
-Kullanıcının toplam ${totalTl.toStringAsFixed(0)} TL maliyetli portföyü şu şekilde:
-$portfolioText
+Sen ALTERA kişisel finans ajanısın. Kullanıcının gerçek zamanlı portföy verilerini incele.
+Türkiye ekonomisi bağlamında (enflasyon, döviz kuru, piyasa koşulları) düşün.
 
-Görevlerin:
-1. Bu portföyün risk dağılımını 1 cümle ile değerlendir.
-2. Türkiye'deki mevcut enflasyonist ortamı düşünerek, bu portföyü enflasyona karşı korumak için kısa bir tavsiye ver.
-3. Maksimum 3-4 cümlelik, profesyonel ama dostane bir finansal danışman gibi konuş.
-4. "Merhaba", "Nasılsın" gibi girişleri atla, direkt analize geç.
+PORTFÖY VERİLERİ:
+$portfolioContext
+
+Her varlık için aşağıdaki formatta SADECe üç sütunlu bir liste yaz:
+
+[VARLLIK ADI] → [AL / SAT / TUT] → [1 cümle gerekçe + rakam]
+
+Kurallar:
+- AL: Fiyat düştüyse veya uzun vadeli potansiyel yüksekse öner.
+- SAT: Kâr realizasyonu zamanı geldiyse veya risk yükseldiyse öner (örn. +%15 üzeri kâr varsa).
+- TUT: Nötr durum, büyük hareket yoksa öner.
+- Her varlık için mutlaka bir karar ver, "belki" yazma.
+- Rakamları kullan (₺ veya %).
+- Son satırda portföy geneli için 1 cümle özet yaz.
+- Giriş cümlesi yazma, direkt listeyle başla.
 ''';
 
     try {
       final response = await _model.generateContent([Content.text(prompt)]);
       return response.text?.trim() ?? 'Portföy analizi şu an gerçekleştirilemiyor.';
     } catch (e) {
-      // Hatayı gizlemek yerine ekrana basıyoruz ki sorunu görelim:
-      return 'Hata Detayı: $e';
+      if (isRateLimitError(e.toString())) {
+        return 'API kotası aşıldı, lütfen biraz bekleyip tekrar deneyin.';
+      }
+      return 'Analiz yapılamadı: ${_summarizeError(e.toString())}';
     }
   }
 
-  /// Hata mesajından "retry in X.Xs" süresini parse eder (ms cinsinden).
+  /// Eski metod — geriye dönük uyumluluk için korunuyor.
+  Future<String> analyzePortfolio(List<Asset> assets) async {
+    if (assets.isEmpty) {
+      return 'Portföyün şu an boş. Hemen bir varlık ekleyerek enflasyona karşı korunmaya başla!';
+    }
+    final lines = assets.map((a) =>
+      '- ${a.name}: ${a.totalCost.toStringAsFixed(0)} TL maliyetle alınmış.'
+    ).join('\n');
+    return generatePortfolioInsights(lines);
+  }
+
+  /// Hata mesajından "retry in X.Xs" veya "retryDelay" süresini parse eder (ms).
   static int _retryDelayMs(String error) {
-    final match = RegExp(r'retry in (\d+\.?\d*)').firstMatch(error);
+    // "retry in X.Xs" — Google AI SDK'nın yaygın formatı
+    final match = RegExp(r'retry[_\s](?:in|delay)[:\s]+(\d+\.?\d*)')
+        .firstMatch(error.toLowerCase());
     if (match != null) {
       final seconds = double.tryParse(match.group(1) ?? '') ?? 10.0;
-      return ((seconds + 2) * 1000).toInt(); // 2s buffer
+      return ((seconds + 3) * 1000).toInt(); // 3s buffer
     }
     return AppConstants.kRateLimitDelayMs;
   }
 
+  /// Hata mesajının rate limit / quota kaynaklı olup olmadığını döndürür.
+  static bool isRateLimitError(String error) {
+    final lower = error.toLowerCase();
+    return lower.contains('quota') ||
+        lower.contains('exceeded') ||
+        lower.contains('rate limit') ||
+        lower.contains('resource_exhausted') ||
+        lower.contains('resource has been exhausted') ||
+        lower.contains('429') ||
+        lower.contains('too many requests') ||
+        lower.contains('kota');
+  }
+
   /// Uzun API hata metnini kısa, Türkçe özete dönüştürür.
   static String _summarizeError(String raw) {
-    final lower = raw.toLowerCase();
-    if (lower.contains('quota') ||
-        lower.contains('exceeded') ||
-        lower.contains('limit')) {
-      final retryMatch = RegExp(r'retry in (\d+\.?\d*)').firstMatch(raw);
+    if (isRateLimitError(raw)) {
+      final retryMatch =
+          RegExp(r'retry[_\s](?:in|delay)[:\s]+(\d+\.?\d*)').firstMatch(
+        raw.toLowerCase(),
+      );
       if (retryMatch != null) {
         return 'Gemini kota aşıldı (${retryMatch.group(1)}s sonra tekrar dene)';
       }
-      return 'Gemini API kota sınırı aşıldı';
+      return 'Gemini API kota/rate-limit aşıldı';
     }
-    if (lower.contains('api key') || lower.contains('invalid key')) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('api key') || lower.contains('invalid key') ||
+        lower.contains('api_key') || lower.contains('unauthorized')) {
       return 'Gemini API anahtarı geçersiz';
     }
-    if (lower.contains('network') || lower.contains('socket')) {
+    if (lower.contains('network') || lower.contains('socket') ||
+        lower.contains('connection')) {
       return 'Ağ bağlantısı hatası';
     }
-    // URL'leri temizle ve metni kısalt
     final cleaned = raw
         .replaceAll(RegExp(r'https?://\S+'), '')
         .replaceAll(RegExp(r'\s+'), ' ')
