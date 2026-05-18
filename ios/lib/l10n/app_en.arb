@@ -1,0 +1,141 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "ALTERA",
+  "dashboard": "Dashboard",
+  "transactions": "Transactions",
+  "budget": "Budget",
+  "investments": "Investments",
+  "agentLog": "Agent Log",
+  "settings": "Settings",
+
+  "agentReady": "ALTERA Agent Ready",
+  "agentCollecting": "Collecting Data...",
+  "agentAnalyzing": "Gemini Analyzing...",
+  "agentActing": "Taking Actions...",
+  "agentCompleted": "Cycle Complete ✓",
+  "agentError": "Error Occurred",
+
+  "agentAnalyzedCount": "{count} transactions analyzed",
+  "@agentAnalyzedCount": {
+    "placeholders": {
+      "count": { "type": "int", "example": "15" }
+    }
+  },
+
+  "agentCollectedCount": "{count} new transactions added",
+  "@agentCollectedCount": {
+    "placeholders": {
+      "count": { "type": "int", "example": "5" }
+    }
+  },
+
+  "budgetSafe": "Safe",
+  "budgetWarning": "Warning",
+  "budgetDanger": "Exceeded",
+
+  "budgetOverspent": "₺{amount} over budget",
+  "@budgetOverspent": {
+    "placeholders": {
+      "amount": { "type": "String" }
+    }
+  },
+
+  "categoryMarket": "Grocery",
+  "categoryRestaurant": "Restaurant",
+  "categoryTransport": "Transport",
+  "categoryBill": "Bill",
+  "categoryClothing": "Clothing",
+  "categoryEntertainment": "Entertainment",
+  "categoryHealth": "Health",
+  "categoryEducation": "Education",
+  "categoryInvestment": "Investment",
+  "categoryIncome": "Income",
+  "categoryOther": "Other",
+
+  "transactionTypeNeed": "Need",
+  "transactionTypeWant": "Want",
+  "transactionTypeIncome": "Income",
+
+  "riskConservative": "Conservative",
+  "riskBalanced": "Balanced",
+  "riskAggressive": "Aggressive",
+
+  "monthlySummary": "Monthly Summary",
+  "totalIncome": "Income",
+  "totalExpense": "Expense",
+  "totalSavings": "Savings",
+
+  "noTransactions": "No transactions yet.\nStart the agent cycle to load transactions.",
+  "noBudgets": "No budgets defined yet.",
+  "noLogs": "No log entries yet.",
+
+  "startAgentCycle": "Agent Cycle",
+  "agentRunning": "Running...",
+
+  "notificationBudgetWarningTitle": "⚠️ {category} Budget {percent}% Full",
+  "@notificationBudgetWarningTitle": {
+    "placeholders": {
+      "category": { "type": "String" },
+      "percent": { "type": "String" }
+    }
+  },
+
+  "notificationBudgetDangerTitle": "🚨 {category} Budget Exceeded!",
+  "@notificationBudgetDangerTitle": {
+    "placeholders": {
+      "category": { "type": "String" }
+    }
+  },
+
+  "notificationInvestmentTitle": "✅ Investment Complete",
+  "notificationInvestmentBody": "₺{amount} transferred to {fund}.",
+  "@notificationInvestmentBody": {
+    "placeholders": {
+      "amount": { "type": "String" },
+      "fund": { "type": "String" }
+    }
+  },
+
+  "apiKeyLabel": "Gemini API Key",
+  "apiKeyHint": "AIzaSy...",
+  "apiKeySaved": "API Key saved",
+  "apiKeyInfo": "API key is stored securely on your device.",
+
+  "resetAllData": "Reset All Data",
+  "resetConfirm": "Transactions, budgets and agent logs will be deleted. This cannot be undone.",
+  "resetSuccess": "All data has been reset",
+
+  "agentFlowTitle": "Agent Flow",
+  "agentFlowIdle": "Idle",
+  "agentFlowCollect": "Collect",
+  "agentFlowAnalyze": "Gemini",
+  "agentFlowAct": "Action",
+
+  "geminiReason": "✨ Gemini Reasoning",
+  "analysisWaiting": "⏳ Awaiting Analysis",
+
+  "transferConfirm": "Confirm",
+  "transferCancel": "Cancel",
+  "transferSuccess": "₺{amount} transferred to {fund}",
+  "@transferSuccess": {
+    "placeholders": {
+      "amount": { "type": "String" },
+      "fund": { "type": "String" }
+    }
+  },
+
+  "investmentReady": "Ready to Invest!",
+  "thisMonthSavings": "This Month's Savings",
+  "historicalTransfers": "Past Transfers",
+
+  "onboardingTitle": "Welcome to\nALTERA!",
+  "onboardingSubtitle": "3 autonomous agents powered by Gemini 2.0 Flash will guide you to your financial goals.",
+  "onboardingNext": "Continue",
+  "onboardingBack": "Back",
+  "onboardingStart": "Get Started!",
+
+  "aboutApp": "ALTERA v1.0.0",
+  "aboutAI": "Gemini 2.0 Flash",
+  "aboutEvent": "BTK Hackathon 2026"
+}
