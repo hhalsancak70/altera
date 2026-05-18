@@ -116,9 +116,7 @@ class AnalysisAgent {
           );
         }
       } catch (e) {
-        // Tek bir işlem başarısız olsa bile devam et
         failedCount++;
-        // Hata mesajını kısa tut (GeminiException zaten özetlenmiş gelir)
         final errMsg = e is GeminiException
             ? e.message
             : e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
@@ -128,6 +126,20 @@ class AnalysisAgent {
           '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
           LogLevel.warning,
         );
+
+        // Kota veya rate limit hatası → kalan işlemleri deneme, döngüyü bitir
+        final lower = errMsg.toLowerCase();
+        if (lower.contains('quota') ||
+            lower.contains('kota') ||
+            lower.contains('exceeded') ||
+            lower.contains('rate limit')) {
+          logCallback(
+            'analysis',
+            'API kota/rate limit aşıldı, döngü durduruldu. Kalan ${unanalyzed.length - i - 1} işlem sonraki döngüde analiz edilecek.',
+            LogLevel.warning,
+          );
+          break;
+        }
       }
 
       // Rate limit aşımını önlemek için bekleme

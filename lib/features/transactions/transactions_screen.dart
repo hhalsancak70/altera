@@ -122,9 +122,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       direction: DismissDirection.endToStart,
                       confirmDismiss: (_) => _confirmDelete(context, tx),
                       onDismissed: (_) => _deleteTransaction(tx),
-                      child: GestureDetector(
-                        onLongPress: () => _openEditScreen(context, tx),
-                        child: TransactionTile(tx: tx),
+                      child: TransactionTile(
+                        tx: tx,
+                        onEdit: () => _openEditScreen(context, tx),
                       ),
                     );
                   },

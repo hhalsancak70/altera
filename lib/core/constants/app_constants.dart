@@ -11,16 +11,16 @@ class AppConstants {
 
   /// Gemini API çağrıları arası bekleme süresi (ms)
   /// Free tier: 15 istek/dakika → en az 4s arayla gönderim gerekli
-  static const int kAnalysisDelayMs = 4500;
+  static const int kAnalysisDelayMs = 5000;
 
   /// Hata durumunda maksimum yeniden deneme sayısı
-  static const int kGeminiMaxRetries = 3;
+  static const int kGeminiMaxRetries = 2;
 
   /// Rate limit hatasında varsayılan bekleme (ms) — API retry-after parse edilemezse
-  static const int kRateLimitDelayMs = 15000;
+  static const int kRateLimitDelayMs = 30000;
 
   /// Bir ajan döngüsünde maksimum analiz edilecek işlem sayısı
-  static const int kMaxTransactionsPerCycle = 20;
+  static const int kMaxTransactionsPerCycle = 8;
 
   // --- BÜTÇE ---
 

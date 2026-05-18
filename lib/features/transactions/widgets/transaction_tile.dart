@@ -10,13 +10,14 @@ import '../../../core/models/transaction.dart';
 /// Tıklandığında detay modal gösterilir
 class TransactionTile extends StatelessWidget {
   final Transaction tx;
+  final VoidCallback? onEdit;
 
-  const TransactionTile({super.key, required this.tx});
+  const TransactionTile({super.key, required this.tx, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showDetail(context),
+      onTap: () => _showDetail(context, onEdit),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         padding: const EdgeInsets.all(14),
@@ -120,7 +121,7 @@ class TransactionTile extends StatelessWidget {
     );
   }
 
-  void _showDetail(BuildContext context) {
+  void _showDetail(BuildContext context, VoidCallback? onEdit) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -135,8 +136,7 @@ class TransactionTile extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text(tx.category.emoji,
-                    style: const TextStyle(fontSize: 32)),
+                Text(tx.category.emoji, style: const TextStyle(fontSize: 32)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -148,6 +148,15 @@ class TransactionTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (onEdit != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: AppColors.accent),
+                    tooltip: 'Düzenle',
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      onEdit();
+                    },
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -160,31 +169,18 @@ class TransactionTile extends StatelessWidget {
               label: 'Tarih',
               value: '${tx.date.day}.${tx.date.month}.${tx.date.year} ${tx.date.hour}:${tx.date.minute.toString().padLeft(2, '0')}',
             ),
-            _DetailRow(
-              label: 'Kategori',
-              value: tx.category.displayNameTr,
-            ),
-            _DetailRow(
-              label: 'Tür',
-              value: tx.type.displayNameTr,
-            ),
+            _DetailRow(label: 'Kategori', value: tx.category.displayNameTr),
+            _DetailRow(label: 'Tür', value: tx.type.displayNameTr),
             if (tx.aiReason != null) ...[
               const SizedBox(height: 12),
               const Text(
                 '✨ Gemini Gerekçesi',
-                style: TextStyle(
-                  color: AppColors.accent,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
                 tx.aiReason!,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
             ],
           ],
