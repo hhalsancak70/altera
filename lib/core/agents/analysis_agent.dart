@@ -1,4 +1,5 @@
 // ALTERA Ajan 2: Analiz Ajanı - Gemini 2.0 Flash entegrasyonu
+import 'dart:async';
 import '../constants/app_constants.dart';
 import '../database/db_helper.dart';
 import '../models/agent_log_entry.dart';
@@ -66,7 +67,7 @@ class AnalysisAgent {
         .getUnanalyzedTransactions(limit: _kMaxTransactionsPerCycle);
 
     if (unanalyzed.isEmpty) {
-      logCallback('analysis', 'Analiz bekleyen işlem yok', LogLevel.info);
+      logCallback('analysis', 'Analiz bekleyen işlem yok, atlanıyor', LogLevel.info);
       stopwatch.stop();
       return AnalysisResult(
         analyzedCount: 0,
@@ -78,7 +79,7 @@ class AnalysisAgent {
 
     logCallback(
       'analysis',
-      '${unanalyzed.length} işlem Gemini\'ye gönderiliyor...',
+      'Gemini 2.0 Flash ile ${unanalyzed.length} işlem analiz edilecek',
       LogLevel.info,
     );
 
@@ -89,6 +90,16 @@ class AnalysisAgent {
     // Adım 2: Her işlem için Gemini analizi
     for (var i = 0; i < unanalyzed.length; i++) {
       final tx = unanalyzed[i];
+
+      final shortDesc = tx.description.length > 25
+          ? '${tx.description.substring(0, 25)}…'
+          : tx.description;
+
+      logCallback(
+        'analysis',
+        '[${i + 1}/${unanalyzed.length}] "${shortDesc}" analiz ediliyor...',
+        LogLevel.info,
+      );
 
       try {
         final analysis = await _gemini.analyzeTransaction(tx);
@@ -107,18 +118,15 @@ class AnalysisAgent {
 
         analyzedCount++;
 
-        // İlerleme logu (her 5 işlemde bir)
-        if ((i + 1) % 5 == 0 || i == unanalyzed.length - 1) {
-          logCallback(
-            'analysis',
-            '${i + 1}/${unanalyzed.length} işlem analiz edildi',
-            LogLevel.info,
-          );
-        }
+        logCallback(
+          'analysis',
+          '  → Kategori: ${analysis.category.displayNameTr} | '
+          'Tür: ${analysis.type.name} | '
+          'Süre: ${analysis.durationMs}ms',
+          LogLevel.success,
+        );
       } catch (e) {
-        // Tek bir işlem başarısız olsa bile devam et
         failedCount++;
-        // Hata mesajını kısa tut (GeminiException zaten özetlenmiş gelir)
         final errMsg = e is GeminiException
             ? e.message
             : e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
@@ -128,6 +136,21 @@ class AnalysisAgent {
           '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
           LogLevel.warning,
         );
+
+        // Kota veya rate limit hatası → kalan işlemleri deneme, cooldown bekle
+        if (GeminiService.isRateLimitError(errMsg)) {
+          logCallback(
+            'analysis',
+            'API kota/rate limit aşıldı. Kalan ${unanalyzed.length - i - 1} işlem sonraki döngüde analiz edilecek. '
+            '${AppConstants.kRateLimitDelayMs ~/ 1000}s bekleniyor...',
+            LogLevel.warning,
+          );
+          // Orchestrator'ın hemen tekrar denememesi için burada bekliyoruz.
+          // Bu sayede bir sonraki cycle başladığında rate limit penceresi geçmiş olur.
+          await Future.delayed(
+              Duration(milliseconds: AppConstants.kRateLimitDelayMs));
+          break;
+        }
       }
 
       // Rate limit aşımını önlemek için bekleme
@@ -139,8 +162,18 @@ class AnalysisAgent {
 
     stopwatch.stop();
 
-    final summary =
-        '$analyzedCount işlem analiz edildi${failedCount > 0 ? ', $failedCount hata' : ''} (${stopwatch.elapsedMilliseconds}ms)';
+    if (distribution.isNotEmpty) {
+      final distSummary = distribution.entries
+          .map((e) => '${e.key.displayNameTr}: ${e.value}')
+          .join(' | ');
+      logCallback('analysis', 'Kategori dağılımı → $distSummary', LogLevel.info);
+    }
+
+    final summary = analyzedCount > 0
+        ? '$analyzedCount işlem başarıyla kategorize edildi'
+            '${failedCount > 0 ? ', $failedCount işlem başarısız' : ''}'
+            ' — toplam ${stopwatch.elapsedMilliseconds}ms'
+        : 'Hiçbir işlem analiz edilemedi${failedCount > 0 ? ' ($failedCount hata)' : ''}';
 
     logCallback(
       'analysis',

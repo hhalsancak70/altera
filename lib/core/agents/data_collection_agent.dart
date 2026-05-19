@@ -41,22 +41,53 @@ class DataCollectionAgent {
         logCallback,
   }) async {
     final stopwatch = Stopwatch()..start();
-    logCallback('data_collection', 'Veri kontrolü başladı', LogLevel.info);
+    logCallback('data_collection', 'Veri toplama ajanı başlatıldı', LogLevel.info);
 
     try {
-      // Gemini analizi bekleyen (is_analyzed=0) işlemleri say
-      final pending = await _dbHelper.getUnanalyzedTransactions(limit: 100);
+      // Tüm bu ayki işlemleri çek
+      final now = DateTime.now();
+      final allThisMonth = await _dbHelper.getTransactions(
+        fromDate: DateTime(now.year, now.month, 1),
+      );
+      final analyzed = allThisMonth.where((t) => t.isAnalyzed).length;
+      final total = allThisMonth.length;
 
       logCallback(
         'data_collection',
-        '${pending.length} işlem Gemini analizi bekliyor',
+        'Bu ay toplam $total işlem bulundu — $analyzed tanesi zaten analiz edilmiş',
         LogLevel.info,
       );
+
+      // Gemini analizi bekleyen (is_analyzed=0) işlemleri al
+      final pending = await _dbHelper.getUnanalyzedTransactions(limit: 100);
+
+      if (pending.isEmpty) {
+        logCallback(
+          'data_collection',
+          'Tüm işlemler analiz edilmiş, bekleyen yok',
+          LogLevel.info,
+        );
+      } else {
+        logCallback(
+          'data_collection',
+          '${pending.length} işlem Gemini analizi kuyruğuna alındı',
+          LogLevel.info,
+        );
+        // İlk birkaç işlemi listele
+        final preview = pending.take(3).map((t) =>
+          '"${t.description.length > 20 ? '${t.description.substring(0, 20)}…' : t.description}"'
+        ).join(', ');
+        logCallback(
+          'data_collection',
+          'Kuyruktaki işlemler: $preview${pending.length > 3 ? ' ve ${pending.length - 3} diğeri' : ''}',
+          LogLevel.info,
+        );
+      }
 
       stopwatch.stop();
       logCallback(
         'data_collection',
-        'Kontrol tamamlandı (${stopwatch.elapsedMilliseconds}ms)',
+        'Veri toplama tamamlandı (${stopwatch.elapsedMilliseconds}ms)',
         LogLevel.success,
       );
 

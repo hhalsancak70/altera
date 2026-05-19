@@ -140,6 +140,28 @@ class NotificationService {
     );
   }
 
+  /// Portföyde önemli fiyat hareketi olduğunda bildirim gönderir
+  Future<void> showPortfolioAlert({
+    required String assetName,
+    required double changePct,
+    required double deltaAmountTl,
+  }) async {
+    final isUp = changePct >= 0;
+    final sign = isUp ? '+' : '';
+    final arrow = isUp ? '▲' : '▼';
+    await _plugin.show(
+      _idInvestment + 1,
+      '$arrow $assetName Önemli Hareket',
+      '$sign${changePct.toStringAsFixed(2)}% ($sign${deltaAmountTl.toStringAsFixed(0)} TL) bugün',
+      _buildDetails(
+        channelId: _channelInvestment,
+        channelName: 'Yatırım Önerileri',
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+    );
+  }
+
   /// Ajan döngüsü tamamlandığında özet bildirim gönderir
   Future<void> showAgentCycleSummary({
     required int analyzedCount,

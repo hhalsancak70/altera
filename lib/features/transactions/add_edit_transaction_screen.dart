@@ -32,7 +32,6 @@ class _AddEditTransactionScreenState
 
   bool _isExpense = true; // Gider mi, Gelir mi?
   TransactionCategory _selectedCategory = TransactionCategory.other;
-  bool _autoCategory = true; // Gemini otomatik kategori
   DateTime _selectedDate = DateTime.now();
   bool _isSaving = false;
 
@@ -47,7 +46,6 @@ class _AddEditTransactionScreenState
       _amountController.text = tx.amount.abs().toStringAsFixed(2);
       _isExpense = tx.amount < 0;
       _selectedCategory = tx.category;
-      _autoCategory = !tx.isAnalyzed && tx.aiReason == null;
       _selectedDate = tx.date;
     }
   }
@@ -98,8 +96,17 @@ class _AddEditTransactionScreenState
                 ),
               ],
               selected: {_isExpense},
-              onSelectionChanged: (set) =>
-                  setState(() => _isExpense = set.first),
+              onSelectionChanged: (set) => setState(() {
+                _isExpense = set.first;
+                // Türe göre uygun varsayılan kategori seç
+                if (_isExpense) {
+                  if (_selectedCategory == TransactionCategory.income) {
+                    _selectedCategory = TransactionCategory.other;
+                  }
+                } else {
+                  _selectedCategory = TransactionCategory.income;
+                }
+              }),
               style: ButtonStyle(
                 backgroundColor: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
@@ -202,39 +209,26 @@ class _AddEditTransactionScreenState
             // ─── Kategori ───
             _SectionLabel(label: 'Kategori'),
             const SizedBox(height: 8),
-            CheckboxListTile(
-              value: _autoCategory,
-              onChanged: (v) => setState(() => _autoCategory = v ?? true),
-              title: const Text(
-                'Otomatik (Gemini ile tespit et)',
-                style: TextStyle(color: AppColors.textPrimary),
+            DropdownButtonFormField<TransactionCategory>(
+              value: _selectedCategory,
+              dropdownColor: AppColors.surface,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.category_outlined, color: AppColors.accent),
               ),
-              subtitle: const Text(
-                'Açıklamana göre AI kategori atar',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-              ),
-              activeColor: AppColors.accent,
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
+              items: TransactionCategory.values
+                  .where((cat) {
+                    // Gelir seçiliyse sadece income göster, gider seçiliyse income gizle
+                    if (_isExpense) return cat != TransactionCategory.income;
+                    return cat == TransactionCategory.income;
+                  })
+                  .map((cat) => DropdownMenuItem(
+                        value: cat,
+                        child: Text('${cat.emoji}  ${cat.displayNameTr}'),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedCategory = v ?? TransactionCategory.other),
             ),
-            if (!_autoCategory) ...[
-              const SizedBox(height: 8),
-              DropdownButtonFormField<TransactionCategory>(
-                value: _selectedCategory,
-                dropdownColor: AppColors.surface,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.category_outlined, color: AppColors.accent),
-                ),
-                items: TransactionCategory.values
-                    .map((cat) => DropdownMenuItem(
-                          value: cat,
-                          child: Text('${cat.emoji}  ${cat.displayNameTr}'),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedCategory = v ?? TransactionCategory.other),
-              ),
-            ],
 
             const SizedBox(height: 32),
 
@@ -300,10 +294,10 @@ class _AddEditTransactionScreenState
         description: _descriptionController.text.trim(),
         amount: finalAmount,
         date: _selectedDate,
-        category: _autoCategory ? TransactionCategory.other : _selectedCategory,
+        category: _selectedCategory,
         type: _isExpense ? TransactionType.need : TransactionType.income,
         aiReason: null,
-        isAnalyzed: !_autoCategory, // Manuel kategori seçildiyse analiz gerekmez
+        isAnalyzed: true, // Kullanıcı kategoriyi seçti, Gemini analizi gerekmez
         source: 'manual',
         createdAt: widget.existingTransaction?.createdAt ?? DateTime.now(),
       );

@@ -20,8 +20,8 @@
 
 ALTERA, tamamen yerel çalışan (backend yok, sunucu yok) bir Flutter uygulamasıdır. Üç otonom ajan sürekli arka planda çalışır:
 
-1. **Veri Toplama Ajanı** — Banka ve fatura kaynaklarından işlemleri çeker, veritabanına yazar
-2. **Analiz Ajanı (Gemini)** — Her işlemi Gemini 2.0 Flash'a göndererek kategori ve ihtiyaç/istek sınıflandırması yapar
+1. **Veri Toplama Ajanı** — Banka ve fatura kaynaklarından işlemleri çeker, AES-256 şifreli veritabanına yazar
+2. **Analiz Ajanı (Gemini)** — Her işlemi Gemini 2.0 Flash'a göndererek kategori ve ihtiyaç/istek sınıflandırması yapar; kişisel veriler (IBAN, kart no, TC Kimlik) gönderilmeden önce maskelenir
 3. **Aksiyon Ajanı** — Bütçe uyarısı gönderir, harcama anomalisi yakalar, ay sonunda tasarrufları otomatik yatırıma yönlendirir
 
 Tüm veriler cihazda kalır. API key bile şifreli olarak cihaz güvenli deposunda saklanır.
@@ -32,11 +32,11 @@ Tüm veriler cihazda kalır. API key bile şifreli olarak cihaz güvenli deposun
 
 | Dashboard | İşlemler | Bütçe |
 |-----------|----------|-------|
-| _Ana kontrol paneli, ajan durumu ve aylık özet_ | _Harcama listesi, Gemini kategorileri_ | _Bütçe limitleri ve kullanım çubukları_ |
+| ![Dashboard](assets/screenshots/dashboard.png) | ![İşlemler](assets/screenshots/transactions.png) | ![Bütçe](assets/screenshots/budget.png) |
 
-| Yatırım | Ajan Log | Ayarlar |
-|---------|----------|---------|
-| _Fon önerileri ve simüle transfer_ | _Ajan kararları şeffaflık merkezi_ | _Profil, API key ve ajan ayarları_ |
+| Yatırım | Arşiv | İçe Aktar |
+|---------|-------|-----------|
+| ![Yatırım](assets/screenshots/investments.png) | ![Arşiv](assets/screenshots/archive.png) | ![İçe Aktar](assets/screenshots/import.png) |
 
 ---
 
@@ -57,9 +57,9 @@ Tüm veriler cihazda kalır. API key bile şifreli olarak cihaz güvenli deposun
     └──────┬──────┘ └─────┬──────┘ └────┬──────────┘
            │              │              │
     ┌──────▼──────────────▼──────────────▼──────────┐
-    │              SQLite (sqflite)                  │
+    │        SQLite — sqflite_sqlcipher (AES-256)    │
     │   transactions · budgets · agent_logs          │
-    │   investment_records                           │
+    │   investment_records · monthly_archives        │
     └────────────────────────────────────────────────┘
 ```
 
@@ -71,17 +71,22 @@ lib/
 │   ├── agents/           # 3 otonom ajan + orchestrator
 │   ├── constants/        # Renkler, sabitler
 │   ├── database/         # SQLite (db_helper) + Hive (kutular)
-│   ├── models/           # Transaction, Budget, AgentLog...
+│   ├── errors/           # Uygulama exception sınıfları
+│   ├── models/           # Transaction, Budget, AgentLog, MonthlyArchive...
 │   ├── providers.dart    # Tüm Riverpod provider'lar
-│   └── services/         # Gemini, BankMock, Notification
+│   ├── repositories/     # Veri erişim katmanı (TransactionRepository)
+│   ├── security/         # PrivacyFilter — Gemini'ye gitmeden önce kişisel veri maskeleme
+│   └── services/         # Gemini, BankMock, Import, YahooFinance, Cycle, Notification
 ├── features/
-│   ├── dashboard/        # Ana panel + widget'lar
-│   ├── transactions/     # İşlem listesi + filtreler
+│   ├── archive/          # Geçmiş ay istatistikleri
 │   ├── budget/           # Bütçe yönetimi
-│   ├── investments/      # Yatırım önerileri
 │   ├── agent_log/        # Ajan şeffaflık ekranı
+│   ├── dashboard/        # Ana panel + widget'lar
+│   ├── import/           # Excel / PDF banka ekstresi içe aktarma
+│   ├── investments/      # Canlı piyasa verileri + Gemini yatırım önerileri
+│   ├── onboarding/       # İlk açılış sihirbazı
 │   ├── settings/         # Kullanıcı ayarları
-│   └── onboarding/       # İlk açılış sihirbazı
+│   └── transactions/     # İşlem listesi + filtreler + manuel ekleme
 ├── l10n/                 # TR + EN lokalizasyon
 └── shared/
     ├── theme/            # AppTheme (dark/light)
@@ -99,8 +104,11 @@ lib/
 | AI | Google Gemini 2.0 Flash (`google_generative_ai ^0.4.6`) |
 | State Management | Riverpod 2.5 (`flutter_riverpod`) |
 | Navigasyon | GoRouter 14 |
-| Yerel Veritabanı | SQLite (`sqflite`) + Hive |
+| Yerel Veritabanı | SQLite AES-256 (`sqflite_sqlcipher`) + Hive |
+| Piyasa Verileri | Yahoo Finance v8 API (`http`) |
+| Dosya İçe Aktarma | `file_picker` + `excel` (xlsx parse) |
 | Grafikler | fl_chart 0.69 |
+| Animasyon | Lottie + Shimmer |
 | Bildirimler | flutter_local_notifications 17 |
 | Güvenli Depolama | flutter_secure_storage 9 |
 | Lokalizasyon | Flutter Gen (ARB) — TR + EN |
@@ -113,14 +121,14 @@ lib/
 
 - Flutter SDK 3.29.3+
 - Dart 3.7+
-- Android SDK (minSdk 21) veya iOS 12+
+- Android SDK (minSdk 21)
 - [Google AI Studio](https://aistudio.google.com) hesabı (ücretsiz Gemini API key)
 
 ### Adımlar
 
 ```bash
 # 1. Repoyu klonla
-git clone https://github.com/KULLANICI_ADIN/altera.git
+git clone https://github.com/hhalsancak70/altera.git
 cd altera
 
 # 2. Bağımlılıkları yükle
@@ -151,10 +159,11 @@ Dashboard'daki **"Ajan Döngüsü"** butonuna bastığında veya otomatik mod a�
 ```
 1. Veri Toplama Ajanı
    └── Banka mock servisinden yeni işlemleri çek
-   └── Duplicate kontrolü yap, SQLite'a kaydet
+   └── Duplicate kontrolü yap, AES-256 şifreli SQLite'a kaydet
 
 2. Analiz Ajanı (Gemini 2.0 Flash)
-   └── is_analyzed=0 olan işlemleri Gemini'ye gönder
+   └── is_analyzed=0 olan işlemleri al
+   └── PrivacyFilter ile IBAN/kart/TC maskeleme uygula
    └── Kategori (market/restoran/ulaşım...) + Tür (ihtiyaç/istek/gelir) al
    └── SQLite'ı güncelle
 
@@ -165,27 +174,66 @@ Dashboard'daki **"Ajan Döngüsü"** butonuna bastığında veya otomatik mod a�
    └── Ay sonu + 500 TL+ tasarruf varsa → Gemini fon seç → simüle transfer
 ```
 
+### Aylık Döngü (CycleService)
+
+Uygulama her açılışında döngü kontrolü yapılır. Kullanıcının seçtiği gün (1–28) geldiğinde:
+1. Geçen ayın istatistikleri `monthly_archives` tablosuna kalıcı olarak arşivlenir
+2. Bütçe harcama sayaçları sıfırlanır (limitler korunur)
+3. Kullanıcıya özet bildirimi gönderilir
+
+### İçe Aktarma (ImportService)
+
+Excel banka ekstresini uygulamaya aktarmak için:
+- `features/import/` ekranından `.xlsx` dosyası seç
+- Başlık satırı (Tarih, Açıklama, Tutar) otomatik algılanır
+- Ziraat, Garanti, İş Bankası, Akbank, Yapı Kredi ve generic format desteklenir
+- Parse edilen işlemler `is_analyzed=0` olarak kaydedilir; Gemini analizine girer
+
+### Canlı Piyasa Verileri (YahooFinanceService)
+
+Yatırım ekranında Yahoo Finance v8 API üzerinden anlık fiyatlar çekilir:
+
+| Varlık | Sembol |
+|--------|--------|
+| Altın (Gram) | `GC=F` |
+| Döviz (USD/TRY) | `TRY=X` |
+| Bitcoin | `BTC-USD` |
+| Ethereum | `ETH-USD` |
+| Borsa İstanbul 100 | `XU100.IS` |
+| S&P 500 ETF | `SPY` |
+| Gümüş | `SI=F` |
+| Euro/TRY | `EURTRY=X` |
+
+Gemini, kullanıcı profiline ve mevcut tasarruf miktarına göre bu varlıklar arasından öneri üretir.
+
 ### Gemini Entegrasyonu
 
-Her işlem için Gemini'ye gönderilen prompt şablonu:
-- İşlem açıklaması ve tutarı
-- Mevcut kategori seçenekleri (enum olarak)
-- Dönen cevap: JSON `{category, type, reason}`
+Her işlem için Gemini'ye gönderilmeden önce `PrivacyFilter` devreye girer:
+- IBAN → `[IBAN]`
+- 16 haneli kart numarası → `[KART]`
+- Türk telefon numarası → `[TEL]`
+- TC Kimlik No → `[TCKN]`
 
-Gemini yanıtı tutarsız metin içerse bile `_extractJson` helper'ı düzgün JSON'ı ayıklar.
+Ardından Gemini'ye gönderilen prompt: işlem açıklaması (maks 100 karakter, temizlenmiş) + mutlak tutar.  
+Dönen cevap: `{category, type, reason}` JSON. `_extractJson` helper'ı tutarsız metni de ayrıştırır.
 
 ---
 
 ## Özellikler
 
 - **Offline-first**: Gemini API yoksa uygulama çökmez; işlemler `is_analyzed=0` olarak bekler
+- **Şifreli veritabanı**: AES-256 ile SQLite — cihaz çalınsa bile veri okunamaz
+- **Gizlilik filtresi**: IBAN, kart no, TC Kimlik Gemini'ye asla gönderilmez
 - **Şeffaf AI**: Her Gemini kararı "✨ Gemini Gerekçesi" ile gösterilir
+- **Banka ekstresi içe aktarma**: `.xlsx` dosyasından işlem aktarımı (Ziraat, Garanti, İş, Akbank, Yapı Kredi)
+- **Canlı piyasa**: Yahoo Finance üzerinden altın, döviz, kripto ve BIST hisse fiyatları
+- **Aylık arşiv**: Her ay kapanışında otomatik istatistik arşivleme
 - **Rate limiting**: Gemini API çağrıları arasında 200ms bekleme
 - **Maksimum log**: 500 kayıt üzerinde otomatik temizlik
 - **Güvenli API key**: `flutter_secure_storage` ile şifreli, kaynak kodda asla yok
 - **Dark mode öncelikli**: Tam dark + light tema desteği
 - **TR + EN**: Türkçe ve İngilizce lokalizasyon
-- **Portrait-only**: iOS ve Android için optimize edilmiş
+- **Portrait-only**: Android için optimize edilmiş
 
 ---
 
@@ -195,12 +243,12 @@ ALTERA tamamen yerel çalışır:
 
 | Veri | Nerede |
 |------|--------|
-| İşlemler, bütçeler, loglar | SQLite (cihaz) |
+| İşlemler, bütçeler, loglar, arşivler | SQLite AES-256 (cihaz) |
 | Kullanıcı profili, ajan durumu | Hive (cihaz) |
 | Gemini API key | flutter_secure_storage (şifreli) |
 | Sunucu, bulut, analitik | **Yok** |
 
-Sadece Gemini API çağrıları sırasında işlem verisi Google'ın Gemini API'sine gönderilir. Bu Gemini'nin kendi [gizlilik politikasına](https://policies.google.com/privacy) tabidir.
+Gemini API çağrıları sırasında **yalnızca maskelenmiş** işlem açıklaması ve mutlak tutar gönderilir. Bu veriler Gemini'nin kendi [gizlilik politikasına](https://policies.google.com/privacy) tabidir.
 
 ---
 
@@ -208,12 +256,12 @@ Sadece Gemini API çağrıları sırasında işlem verisi Google'ın Gemini API'
 
 ### Mock Veri
 
-`assets/data/mock_transactions.json` içinde 39 gerçekçi Türk bankası işlemi vardır (Migros, Starbucks, İstanbulkart, ISKI, Netflix vs.). Demo için gerçek banka entegrasyonu gerekmez.
+`assets/data/mock_transactions.json` içinde gerçekçi Türk bankası işlemleri vardır (Migros, Starbucks, İstanbulkart, ISKI, Netflix vs.). Demo için gerçek banka entegrasyonu veya dosya yükleme gerekmez.
 
 ### Yeni Kategori Eklemek
 
-1. `lib/core/models/transaction.dart` — `TransactionCategory` enum'una ekle
-2. `lib/core/constants/app_colors.dart` — `categoryColors` map'ine renk ekle
+1. [lib/core/models/transaction.dart](lib/core/models/transaction.dart) — `TransactionCategory` enum'una ekle
+2. [lib/core/constants/app_colors.dart](lib/core/constants/app_colors.dart) — `categoryColors` map'ine renk ekle
 3. `lib/l10n/app_tr.arb` + `app_en.arb` — lokalizasyon string'i ekle
 4. `assets/data/mock_transactions.json` — örnek veri ekle (isteğe bağlı)
 

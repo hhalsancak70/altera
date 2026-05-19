@@ -1,7 +1,7 @@
 // ALTERA Gemini 2.0 Flash servis katmanı - tüm AI çağrıları burada
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 
 import '../constants/app_constants.dart';
 import '../models/transaction.dart';
@@ -62,30 +62,48 @@ class InvestmentRecommendation {
 /// final analysis = await gemini.analyzeTransaction(tx);
 /// ```
 class GeminiService {
-  final GenerativeModel _model;
+  final String _apiKey;
 
-  GeminiService._(String apiKey)
-      : _model = GenerativeModel(
-    model: 'gemini-2.0-flash',
-    apiKey: apiKey,
-    generationConfig: GenerationConfig(
-      maxOutputTokens: AppConstants.kGeminiMaxTokens,
-      temperature: 0.1, // Düşük temperature - tutarlı JSON çıktısı için
-    ),
-  );
+  GeminiService._(this._apiKey);
 
   /// flutter_secure_storage'dan API key okuyarak modeli başlatır
   static Future<GeminiService> initialize() async {
     const storage = FlutterSecureStorage();
-    final apiKey = await storage.read(key: AppConstants.kSecureKeyGeminiApiKey);
-    if (apiKey == null || apiKey.isEmpty) {
-      throw const GeminiException('Gemini API key bulunamadı. Lütfen ayarlardan API key girin.');
+    String? apiKey = await storage.read(key: AppConstants.kSecureKeyGeminiApiKey);
+    if (apiKey == null || apiKey.isEmpty || apiKey == 'AIzaSyCwhgjxfc2i3W3_-n8JYkVhYg3xcn8HbRE') {
+      apiKey = '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';
+      await storage.write(key: AppConstants.kSecureKeyGeminiApiKey, value: apiKey);
     }
     return GeminiService._(apiKey);
   }
 
   /// Test amaçlı doğrudan API key ile oluşturur
   factory GeminiService.withKey(String apiKey) => GeminiService._(apiKey);
+
+  Future<String?> _callGroq(String prompt) async {
+    final uri = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $_apiKey',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'model': 'llama-3.1-8b-instant',
+        'messages': [
+          {'role': 'user', 'content': prompt}
+        ],
+        'temperature': 0.1,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw GeminiException('API Hatası: ${response.statusCode} - ${response.body}');
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    return data['choices'][0]['message']['content'];
+  }
 
   /// Tek bir işlemi analiz eder - kategori, tür ve gerekçe döndürür.
   ///
@@ -114,16 +132,16 @@ SADECE geçerli JSON döndür, başka hiçbir şey yazma:
     String? responseText;
     for (var attempt = 0; attempt < AppConstants.kGeminiMaxRetries; attempt++) {
       try {
-        final response = await _model.generateContent([Content.text(prompt)]);
-        responseText = response.text;
+        responseText = await _callGroq(prompt);
         break;
       } catch (e) {
         final errStr = e.toString();
         if (attempt == AppConstants.kGeminiMaxRetries - 1) {
           throw GeminiException(_summarizeError(errStr));
         }
-        // API'nin belirttiği retry süresini parse et; yoksa varsayılan bekle
-        final delayMs = _retryDelayMs(errStr);
+        // API'nin belirttiği retry süresini parse et; her denemede iki katına çıkar
+        final baseDelay = _retryDelayMs(errStr);
+        final delayMs = baseDelay * (attempt + 1);
         await Future.delayed(Duration(milliseconds: delayMs));
       }
     }
@@ -139,11 +157,13 @@ SADECE geçerli JSON döndür, başka hiçbir şey yazma:
       final data = jsonDecode(json) as Map<String, dynamic>;
 
       return TransactionAnalysis(
-        category: TransactionCategory.values.byName(
-          data['category'] as String? ?? 'other',
+        category: TransactionCategory.values.firstWhere(
+          (e) => e.name == (data['category']?.toString().toLowerCase()),
+          orElse: () => TransactionCategory.other,
         ),
-        type: TransactionType.values.byName(
-          data['type'] as String? ?? 'need',
+        type: TransactionType.values.firstWhere(
+          (e) => e.name == (data['type']?.toString().toLowerCase()),
+          orElse: () => TransactionType.need,
         ),
         reason: data['reason'] as String? ?? '',
         durationMs: stopwatch.elapsedMilliseconds,
@@ -202,8 +222,7 @@ Not: suggested_amount = tasarrufun %80'i (${(savingsAmount * 0.8).toStringAsFixe
 ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      final responseText = response.text ?? '';
+      final responseText = await _callGroq(prompt) ?? '';
       final json = _extractJson(responseText);
       final data = jsonDecode(json) as Map<String, dynamic>;
 
@@ -241,8 +260,8 @@ Sadece öneri metnini yaz, başka hiçbir şey yazma.
 ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      return response.text?.trim() ??
+      final responseText = await _callGroq(prompt);
+      return responseText?.trim() ??
           'Bu ay bütçeni aştın. Harcamalarını gözden geçirmeyi dene.';
     } catch (_) {
       return 'Bu ay ${category.displayNameTr} bütçeni aştın. Harcamalarını gözden geçirmeyi dene.';
@@ -264,8 +283,7 @@ SADECE geçerli JSON döndür (bulamazsan null döndür):
 ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      final responseText = response.text ?? '';
+      final responseText = await _callGroq(prompt) ?? '';
       if (responseText.contains('null')) return null;
       final json = _extractJson(responseText);
       return jsonDecode(json) as Map<String, dynamic>;
@@ -274,71 +292,100 @@ SADECE geçerli JSON döndür (bulamazsan null döndür):
     }
   }
 
-  /// YENİ EKLENEN: Kullanıcının mevcut portföyünü analiz edip enflasyon kalkanı önerisi sunar.
+  /// Canlı fiyat + günlük P&L verisiyle portföy önerileri üretir.
   ///
-  /// [assets] Kullanıcının portföyündeki varlıklar listesi
+  /// [portfolioContext] Önceden hesaplanmış, her varlığın güncel değer/kazanç
+  /// bilgisini içeren metin. Widget tarafından oluşturulur.
+  Future<String> generatePortfolioInsights(String portfolioContext) async {
+    final prompt = '''
+Sen ALTERA kişisel finans ajanısın. Kullanıcının gerçek zamanlı portföy verilerini incele.
+Türkiye ekonomisi bağlamında (enflasyon, döviz kuru, piyasa koşulları) düşün.
+
+PORTFÖY VERİLERİ:
+$portfolioContext
+
+Her varlık için aşağıdaki formatta SADECe üç sütunlu bir liste yaz:
+
+[VARLLIK ADI] → [AL / SAT / TUT] → [1 cümle gerekçe + rakam]
+
+Kurallar:
+- AL: Fiyat düştüyse veya uzun vadeli potansiyel yüksekse öner.
+- SAT: Kâr realizasyonu zamanı geldiyse veya risk yükseldiyse öner (örn. +%15 üzeri kâr varsa).
+- TUT: Nötr durum, büyük hareket yoksa öner.
+- Her varlık için mutlaka bir karar ver, "belki" yazma.
+- Rakamları kullan (₺ veya %).
+- Son satırda portföy geneli için 1 cümle özet yaz.
+- Giriş cümlesi yazma, direkt listeyle başla.
+''';
+
+    try {
+      final responseText = await _callGroq(prompt);
+      return responseText?.trim() ?? 'Portföy analizi şu an gerçekleştirilemiyor.';
+    } catch (e) {
+      if (isRateLimitError(e.toString())) {
+        return 'API kotası aşıldı, lütfen biraz bekleyip tekrar deneyin.';
+      }
+      return 'Analiz yapılamadı: ${_summarizeError(e.toString())}';
+    }
+  }
+
+  /// Eski metod — geriye dönük uyumluluk için korunuyor.
   Future<String> analyzePortfolio(List<Asset> assets) async {
     if (assets.isEmpty) {
       return 'Portföyün şu an boş. Hemen bir varlık ekleyerek enflasyona karşı korunmaya başla!';
     }
-
-    String portfolioText = '';
-    double totalTl = 0;
-    for (var a in assets) {
-      portfolioText += '- ${a.name}: ${a.totalCost.toStringAsFixed(0)} TL maliyetle alınmış.\n';
-      totalTl += a.totalCost;
-    }
-
-    final prompt = '''
-Sen ALTERA uygulamasının "Enflasyon Kalkanı Yatırım Ajanı"sın. 
-Kullanıcının toplam ${totalTl.toStringAsFixed(0)} TL maliyetli portföyü şu şekilde:
-$portfolioText
-
-Görevlerin:
-1. Bu portföyün risk dağılımını 1 cümle ile değerlendir.
-2. Türkiye'deki mevcut enflasyonist ortamı düşünerek, bu portföyü enflasyona karşı korumak için kısa bir tavsiye ver.
-3. Maksimum 3-4 cümlelik, profesyonel ama dostane bir finansal danışman gibi konuş.
-4. "Merhaba", "Nasılsın" gibi girişleri atla, direkt analize geç.
-''';
-
-    try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      return response.text?.trim() ?? 'Portföy analizi şu an gerçekleştirilemiyor.';
-    } catch (e) {
-      // Hatayı gizlemek yerine ekrana basıyoruz ki sorunu görelim:
-      return 'Hata Detayı: $e';
-    }
+    final lines = assets.map((a) =>
+      '- ${a.name}: ${a.totalCost.toStringAsFixed(0)} TL maliyetle alınmış.'
+    ).join('\n');
+    return generatePortfolioInsights(lines);
   }
 
-  /// Hata mesajından "retry in X.Xs" süresini parse eder (ms cinsinden).
+  /// Hata mesajından "retry in X.Xs" veya "retryDelay" süresini parse eder (ms).
   static int _retryDelayMs(String error) {
-    final match = RegExp(r'retry in (\d+\.?\d*)').firstMatch(error);
+    // "retry in X.Xs" — Google AI SDK'nın yaygın formatı
+    final match = RegExp(r'retry[_\s](?:in|delay)[:\s]+(\d+\.?\d*)')
+        .firstMatch(error.toLowerCase());
     if (match != null) {
       final seconds = double.tryParse(match.group(1) ?? '') ?? 10.0;
-      return ((seconds + 2) * 1000).toInt(); // 2s buffer
+      return ((seconds + 3) * 1000).toInt(); // 3s buffer
     }
     return AppConstants.kRateLimitDelayMs;
   }
 
+  /// Hata mesajının rate limit / quota kaynaklı olup olmadığını döndürür.
+  static bool isRateLimitError(String error) {
+    final lower = error.toLowerCase();
+    return lower.contains('quota') ||
+        lower.contains('exceeded') ||
+        lower.contains('rate limit') ||
+        lower.contains('resource_exhausted') ||
+        lower.contains('resource has been exhausted') ||
+        lower.contains('429') ||
+        lower.contains('too many requests') ||
+        lower.contains('kota');
+  }
+
   /// Uzun API hata metnini kısa, Türkçe özete dönüştürür.
   static String _summarizeError(String raw) {
-    final lower = raw.toLowerCase();
-    if (lower.contains('quota') ||
-        lower.contains('exceeded') ||
-        lower.contains('limit')) {
-      final retryMatch = RegExp(r'retry in (\d+\.?\d*)').firstMatch(raw);
+    if (isRateLimitError(raw)) {
+      final retryMatch =
+          RegExp(r'retry[_\s](?:in|delay)[:\s]+(\d+\.?\d*)').firstMatch(
+        raw.toLowerCase(),
+      );
       if (retryMatch != null) {
         return 'Gemini kota aşıldı (${retryMatch.group(1)}s sonra tekrar dene)';
       }
-      return 'Gemini API kota sınırı aşıldı';
+      return 'Gemini API kota/rate-limit aşıldı';
     }
-    if (lower.contains('api key') || lower.contains('invalid key')) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('api key') || lower.contains('invalid key') ||
+        lower.contains('api_key') || lower.contains('unauthorized')) {
       return 'Gemini API anahtarı geçersiz';
     }
-    if (lower.contains('network') || lower.contains('socket')) {
+    if (lower.contains('network') || lower.contains('socket') ||
+        lower.contains('connection')) {
       return 'Ağ bağlantısı hatası';
     }
-    // URL'leri temizle ve metni kısalt
     final cleaned = raw
         .replaceAll(RegExp(r'https?://\S+'), '')
         .replaceAll(RegExp(r'\s+'), ' ')

@@ -201,6 +201,13 @@ final investmentFundsProvider =
   return ref.read(investmentFundServiceProvider).fetchInvestmentFunds();
 });
 
+/// Canlı fiyat bağlamıyla portföy içgörüsü — widget tarafından bağlam hazırlanır
+final portfolioInsightsProvider =
+    FutureProvider.family<String, String>((ref, portfolioContext) async {
+  final gemini = await ref.read(geminiServiceProvider.future);
+  return gemini.generatePortfolioInsights(portfolioContext);
+});
+
 /// Yatırım geçmişi
 final investmentHistoryProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
