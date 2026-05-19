@@ -28,18 +28,6 @@ Tüm veriler cihazda kalır. API key bile şifreli olarak cihaz güvenli deposun
 
 ---
 
-## Ekran Görüntüleri
-
-| Dashboard | İşlemler | Bütçe |
-|-----------|----------|-------|
-| ![Dashboard](assets/screenshots/dashboard.png) | ![İşlemler](assets/screenshots/transactions.png) | ![Bütçe](assets/screenshots/budget.png) |
-
-| Yatırım | Arşiv | İçe Aktar |
-|---------|-------|-----------|
-| ![Yatırım](assets/screenshots/investments.png) | ![Arşiv](assets/screenshots/archive.png) | ![İçe Aktar](assets/screenshots/import.png) |
-
----
-
 ## Mimari
 
 ```
