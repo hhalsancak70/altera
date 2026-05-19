@@ -7,36 +7,25 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3.29.3-02569B?logo=flutter)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.7-0175C2?logo=dart)](https://dart.dev)
 [![Gemini](https://img.shields.io/badge/Gemini-2.0_Flash-4285F4?logo=google)](https://ai.google.dev)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![BTK Hackathon](https://img.shields.io/badge/BTK_Akademi-Hackathon_2026-orange)](https://btkakademi.gov.tr)
 
 > BTK Akademi × Google Hackathon 2026 — **ALTERA** harcamalarını analiz eder, bütçeni korur ve tasarruflarını otomatik olarak yatırıma yönlendirir.
 
 </div>
 
+> **Finansal Uyarı:** ALTERA bir yatırım danışmanlığı aracı değildir. Uygulama tarafından üretilen yatırım önerileri yalnızca bilgilendirme amaçlıdır; finansal tavsiye niteliği taşımaz. Kullanıcı onayı olmadan gerçek bir işlem gerçekleştirilmez. Yatırım kararlarınızı vermeden önce lisanslı bir finansal danışmana başvurunuz.
+
 ---
 
 ## Nedir?
 
-ALTERA, tamamen yerel çalışan (backend yok, sunucu yok) bir Flutter uygulamasıdır. Üç otonom ajan sürekli arka planda çalışır:
+ALTERA, tamamen yerel çalışan (backend yok, sunucu yok) bir Flutter uygulamasıdır. Uygulama açık olduğu sürece periyodik kontrol yapan üç ajan çalışır:
 
-1. **Veri Toplama Ajanı** — Banka ve fatura kaynaklarından işlemleri çeker, AES-256 şifreli veritabanına yazar
-2. **Analiz Ajanı (Gemini)** — Her işlemi Gemini 2.0 Flash'a göndererek kategori ve ihtiyaç/istek sınıflandırması yapar; kişisel veriler (IBAN, kart no, TC Kimlik) gönderilmeden önce maskelenir
-3. **Aksiyon Ajanı** — Bütçe uyarısı gönderir, harcama anomalisi yakalar, ay sonunda tasarrufları otomatik yatırıma yönlendirir
+1. **Veri Toplama Ajanı** — Excel banka ekstresinden işlemleri içe aktarır, duplicate kontrolü yaparak AES-256 şifreli veritabanına yazar
+2. **Analiz Ajanı (Gemini)** — Her işlemi Gemini 2.0 Flash'a göndererek kategori ve ihtiyaç/istek sınıflandırması yapar; kişisel veriler (IBAN, kart no, TC Kimlik, e-posta) gönderilmeden önce maskelenir
+3. **Aksiyon Ajanı** — Bütçe uyarısı gönderir, harcama anomalisi yakalar, ay sonunda tasarrufları simüle yatırıma yönlendirir
 
-Tüm veriler cihazda kalır. API key bile şifreli olarak cihaz güvenli deposunda saklanır.
-
----
-
-## Ekran Görüntüleri
-
-| Dashboard | İşlemler | Bütçe |
-|-----------|----------|-------|
-| ![Dashboard](assets/screenshots/dashboard.png) | ![İşlemler](assets/screenshots/transactions.png) | ![Bütçe](assets/screenshots/budget.png) |
-
-| Yatırım | Arşiv | İçe Aktar |
-|---------|-------|-----------|
-| ![Yatırım](assets/screenshots/investments.png) | ![Arşiv](assets/screenshots/archive.png) | ![İçe Aktar](assets/screenshots/import.png) |
+Tüm veriler cihazda kalır. API key şifreli olarak cihaz güvenli deposunda saklanır ve kaynak kodda yer almaz.
 
 ---
 
@@ -76,18 +65,19 @@ lib/
 │   ├── providers.dart    # Tüm Riverpod provider'lar
 │   ├── repositories/     # Veri erişim katmanı (TransactionRepository)
 │   ├── security/         # PrivacyFilter — Gemini'ye gitmeden önce kişisel veri maskeleme
-│   └── services/         # Gemini, BankMock, Import, YahooFinance, Cycle, Notification
+│   ├── services/         # Gemini, Import, YahooFinance, Cycle, Notification
+│   └── utils/            # Para parser (money_parser.dart) vb.
 ├── features/
 │   ├── archive/          # Geçmiş ay istatistikleri
 │   ├── budget/           # Bütçe yönetimi
 │   ├── agent_log/        # Ajan şeffaflık ekranı
 │   ├── dashboard/        # Ana panel + widget'lar
-│   ├── import/           # Excel / PDF banka ekstresi içe aktarma
+│   ├── import/           # Excel banka ekstresi içe aktarma (.xlsx)
 │   ├── investments/      # Canlı piyasa verileri + Gemini yatırım önerileri
 │   ├── onboarding/       # İlk açılış sihirbazı
 │   ├── settings/         # Kullanıcı ayarları
 │   └── transactions/     # İşlem listesi + filtreler + manuel ekleme
-├── l10n/                 # TR + EN lokalizasyon
+├── l10n/                 # Kısmi Türkçe arayüz (ARB tabanlı, tam lokalizasyon tamamlanmamış)
 └── shared/
     ├── theme/            # AppTheme (dark/light)
     └── widgets/          # AlteraBottomNav, paylaşılan widget'lar
@@ -111,7 +101,6 @@ lib/
 | Animasyon | Lottie + Shimmer |
 | Bildirimler | flutter_local_notifications 17 |
 | Güvenli Depolama | flutter_secure_storage 9 |
-| Lokalizasyon | Flutter Gen (ARB) — TR + EN |
 
 ---
 
@@ -134,10 +123,7 @@ cd altera
 # 2. Bağımlılıkları yükle
 flutter pub get
 
-# 3. Lokalizasyon dosyalarını üret
-flutter gen-l10n
-
-# 4. Uygulamayı başlat
+# 3. Uygulamayı başlat (debug)
 flutter run
 ```
 
@@ -146,7 +132,31 @@ flutter run
 2. **API Key** — [Google AI Studio](https://aistudio.google.com)'dan aldığın ücretsiz Gemini API key'ini gir
 3. **Profil** — Ad, aylık gelir ve risk profili seç
 
-> API key cihazında şifreli olarak saklanır, hiçbir sunucuya gönderilmez.
+> API key cihazında `flutter_secure_storage` ile şifreli olarak saklanır, hiçbir sunucuya gönderilmez ve kaynak kodda yer almaz.
+
+---
+
+## Release Signing (Android)
+
+Release APK/AAB oluşturmak için `android/key.properties` dosyası gereklidir.
+Bu dosya `.gitignore`'dadır ve repoya commit edilmez.
+
+```properties
+# android/key.properties (REPO'YA COMMIT ETMEYİN)
+storePassword=<keystore_parolanız>
+keyPassword=<anahtar_parolanız>
+keyAlias=<anahtar_takma_adı>
+storeFile=<keystore_dosyasının_mutlak_yolu>
+```
+
+Keystore oluşturmak için:
+```bash
+keytool -genkey -v -keystore altera-release.jks \
+  -alias altera -keyalg RSA -keysize 2048 -validity 10000
+```
+
+> `key.properties` yoksa `flutter build apk --release` açık hata verir.
+> `flutter run` ve `flutter build apk --debug` etkilenmez.
 
 ---
 
@@ -154,16 +164,16 @@ flutter run
 
 ### Ajan Döngüsü
 
-Dashboard'daki **"Ajan Döngüsü"** butonuna bastığında veya otomatik mod açıkken her 30 saniyede bir:
+Dashboard'daki **"Ajan Döngüsü"** butonuna bastığında veya otomatik mod açıkken her 5 dakikada bir (uygulama ön planda olduğu sürece):
 
 ```
 1. Veri Toplama Ajanı
-   └── Banka mock servisinden yeni işlemleri çek
-   └── Duplicate kontrolü yap, AES-256 şifreli SQLite'a kaydet
+   └── Manuel eklenen veya import edilen yeni işlemleri topla
+   └── Duplicate fingerprint kontrolü yap, AES-256 şifreli SQLite'a kaydet
 
 2. Analiz Ajanı (Gemini 2.0 Flash)
    └── is_analyzed=0 olan işlemleri al
-   └── PrivacyFilter ile IBAN/kart/TC maskeleme uygula
+   └── PrivacyFilter ile IBAN/kart/TC/e-posta maskeleme uygula
    └── Kategori (market/restoran/ulaşım...) + Tür (ihtiyaç/istek/gelir) al
    └── SQLite'ı güncelle
 
@@ -174,20 +184,24 @@ Dashboard'daki **"Ajan Döngüsü"** butonuna bastığında veya otomatik mod a�
    └── Ay sonu + 500 TL+ tasarruf varsa → Gemini fon seç → simüle transfer
 ```
 
+> Ajanlar yalnızca uygulama açık ve ön plandayken çalışır; gerçek bir arka plan servisi yoktur.
+
 ### Aylık Döngü (CycleService)
 
 Uygulama her açılışında döngü kontrolü yapılır. Kullanıcının seçtiği gün (1–28) geldiğinde:
 1. Geçen ayın istatistikleri `monthly_archives` tablosuna kalıcı olarak arşivlenir
-2. Bütçe harcama sayaçları sıfırlanır (limitler korunur)
+2. İşlem yoksa arşiv oluşturulmaz
 3. Kullanıcıya özet bildirimi gönderilir
 
 ### İçe Aktarma (ImportService)
 
 Excel banka ekstresini uygulamaya aktarmak için:
-- `features/import/` ekranından `.xlsx` dosyası seç
-- Başlık satırı (Tarih, Açıklama, Tutar) otomatik algılanır
-- Ziraat, Garanti, İş Bankası, Akbank, Yapı Kredi ve generic format desteklenir
+- `features/import/` ekranından `.xlsx` dosyası seç (maks 20 MB)
+- Başlık satırı otomatik algılanır (Tarih + Tutar/Borç/Alacak sütunları)
+- Borç/Alacak (Debit/Credit) ayrı sütunlu formatlar desteklenir
 - Parse edilen işlemler `is_analyzed=0` olarak kaydedilir; Gemini analizine girer
+- Import sonucu: okunan satır / eklenen / duplicate atlanan / hatalı satır
+- Aynı dosya iki kez import edilirse duplicate kayıt oluşmaz (fingerprint kontrolü)
 
 ### Canlı Piyasa Verileri (YahooFinanceService)
 
@@ -204,8 +218,6 @@ Yatırım ekranında Yahoo Finance v8 API üzerinden anlık fiyatlar çekilir:
 | Gümüş | `SI=F` |
 | Euro/TRY | `EURTRY=X` |
 
-Gemini, kullanıcı profiline ve mevcut tasarruf miktarına göre bu varlıklar arasından öneri üretir.
-
 ### Gemini Entegrasyonu
 
 Her işlem için Gemini'ye gönderilmeden önce `PrivacyFilter` devreye girer:
@@ -213,8 +225,9 @@ Her işlem için Gemini'ye gönderilmeden önce `PrivacyFilter` devreye girer:
 - 16 haneli kart numarası → `[KART]`
 - Türk telefon numarası → `[TEL]`
 - TC Kimlik No → `[TCKN]`
+- E-posta → `[EMAIL]`
 
-Ardından Gemini'ye gönderilen prompt: işlem açıklaması (maks 100 karakter, temizlenmiş) + mutlak tutar.  
+Ardından Gemini'ye gönderilen prompt: işlem açıklaması (maks 100 karakter, temizlenmiş) + mutlak tutar.
 Dönen cevap: `{category, type, reason}` JSON. `_extractJson` helper'ı tutarsız metni de ayrıştırır.
 
 ---
@@ -223,16 +236,18 @@ Dönen cevap: `{category, type, reason}` JSON. `_extractJson` helper'ı tutarsı
 
 - **Offline-first**: Gemini API yoksa uygulama çökmez; işlemler `is_analyzed=0` olarak bekler
 - **Şifreli veritabanı**: AES-256 ile SQLite — cihaz çalınsa bile veri okunamaz
-- **Gizlilik filtresi**: IBAN, kart no, TC Kimlik Gemini'ye asla gönderilmez
-- **Şeffaf AI**: Her Gemini kararı "✨ Gemini Gerekçesi" ile gösterilir
-- **Banka ekstresi içe aktarma**: `.xlsx` dosyasından işlem aktarımı (Ziraat, Garanti, İş, Akbank, Yapı Kredi)
+- **Gizlilik filtresi**: IBAN, kart no, TC Kimlik, e-posta Gemini'ye asla gönderilmez
+- **Şeffaf AI**: Her Gemini kararı "Gemini Gerekçesi" ile gösterilir
+- **Banka ekstresi içe aktarma**: `.xlsx` dosyasından işlem aktarımı; Borç/Alacak sütunlu formatlar dahil
+- **Türkçe para formatı**: `12,50` ve `1.234,56` formatları import ve manuel girişte desteklenir
+- **Duplicate koruması**: Aynı dosyanın iki kez import edilmesi duplicate kayıt oluşturmaz
 - **Canlı piyasa**: Yahoo Finance üzerinden altın, döviz, kripto ve BIST hisse fiyatları
-- **Aylık arşiv**: Her ay kapanışında otomatik istatistik arşivleme
-- **Rate limiting**: Gemini API çağrıları arasında 200ms bekleme
+- **Aylık arşiv**: Her ay kapanışında otomatik istatistik arşivleme (işlem yoksa arşiv oluşmaz)
+- **Bildirimler**: Bütçe uyarısı, portföy hareketleri, ajan özeti (Android 13+ izni otomatik istenir)
+- **Rate limiting**: Gemini API çağrıları arasında bekleme + retry mantığı
 - **Maksimum log**: 500 kayıt üzerinde otomatik temizlik
-- **Güvenli API key**: `flutter_secure_storage` ile şifreli, kaynak kodda asla yok
+- **Güvenli API key**: `flutter_secure_storage` ile şifreli — kaynak kodda asla yer almaz
 - **Dark mode öncelikli**: Tam dark + light tema desteği
-- **TR + EN**: Türkçe ve İngilizce lokalizasyon
 - **Portrait-only**: Android için optimize edilmiş
 
 ---
@@ -254,17 +269,6 @@ Gemini API çağrıları sırasında **yalnızca maskelenmiş** işlem açıklam
 
 ## Geliştirme
 
-### Mock Veri
-
-`assets/data/mock_transactions.json` içinde gerçekçi Türk bankası işlemleri vardır (Migros, Starbucks, İstanbulkart, ISKI, Netflix vs.). Demo için gerçek banka entegrasyonu veya dosya yükleme gerekmez.
-
-### Yeni Kategori Eklemek
-
-1. [lib/core/models/transaction.dart](lib/core/models/transaction.dart) — `TransactionCategory` enum'una ekle
-2. [lib/core/constants/app_colors.dart](lib/core/constants/app_colors.dart) — `categoryColors` map'ine renk ekle
-3. `lib/l10n/app_tr.arb` + `app_en.arb` — lokalizasyon string'i ekle
-4. `assets/data/mock_transactions.json` — örnek veri ekle (isteğe bağlı)
-
 ### Test
 
 ```bash
@@ -272,11 +276,16 @@ flutter test
 flutter analyze
 ```
 
+### Yeni Kategori Eklemek
+
+1. [lib/core/models/transaction.dart](lib/core/models/transaction.dart) — `TransactionCategory` enum'una ekle
+2. [lib/core/constants/app_colors.dart](lib/core/constants/app_colors.dart) — `categoryColors` map'ine renk ekle
+
 ---
 
-## Lisans
+## Yasal Uyarı
 
-MIT © 2026 — Detaylar için [LICENSE](LICENSE) dosyasına bak.
+> **ALTERA bir yatırım danışmanlığı aracı değildir.** Uygulama tarafından üretilen yatırım önerileri yalnızca bilgilendirme amaçlıdır; finansal tavsiye niteliği taşımaz. Kullanıcı onayı olmadan gerçek bir al/sat işlemi gerçekleştirilmez. Yatırım kararlarınızı vermeden önce lisanslı bir finansal danışmana başvurunuz.
 
 ---
 

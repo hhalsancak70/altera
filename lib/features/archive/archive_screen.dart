@@ -70,18 +70,20 @@ class ArchiveScreen extends ConsumerWidget {
             itemBuilder: (ctx, i) => _ArchiveCard(archive: archives[i]),
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(
-            color: AppColors.accent,
-            strokeWidth: 2,
-          ),
-        ),
-        error: (e, _) => Center(
-          child: Text(
-            'Arşiv yüklenemedi: $e',
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-        ),
+        loading:
+            () => const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.accent,
+                strokeWidth: 2,
+              ),
+            ),
+        error:
+            (e, _) => Center(
+              child: Text(
+                'Arşiv yüklenemedi: $e',
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
       ),
     );
   }
@@ -119,11 +121,15 @@ class _ArchiveCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: isPositiveSavings
-                      ? Colors.greenAccent.withAlpha(40)
-                      : Colors.redAccent.withAlpha(40),
+                  color:
+                      isPositiveSavings
+                          ? Colors.greenAccent.withAlpha(40)
+                          : Colors.redAccent.withAlpha(40),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -131,9 +137,10 @@ class _ArchiveCard extends StatelessWidget {
                       ? '+₺${archive.totalSavings.toStringAsFixed(0)}'
                       : '-₺${archive.totalSavings.abs().toStringAsFixed(0)}',
                   style: TextStyle(
-                    color: isPositiveSavings
-                        ? Colors.greenAccent
-                        : Colors.redAccent,
+                    color:
+                        isPositiveSavings
+                            ? Colors.greenAccent
+                            : Colors.redAccent,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),

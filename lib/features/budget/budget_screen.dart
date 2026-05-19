@@ -42,50 +42,57 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
         children: [
           // Aylık özet bant
           summaryAsync.when(
-            data: (summary) => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(20),
-                  border:
-                      Border.all(color: const Color(0xFF1F2937), width: 1),
-                ),
-                child: Row(
-                  children: [
-                    _SummaryColumn(
-                      label: 'Toplam Bütçe',
-                      value: budgetsAsync.when(
-                        data: (b) =>
-                            b.fold(0.0, (s, e) => s + e.limitAmount),
-                        loading: () => 0.0,
-                        error: (_, __) => 0.0,
+            data:
+                (summary) => Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.primaryGradient,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF1F2937),
+                        width: 1,
                       ),
-                      color: AppColors.textPrimary,
                     ),
-                    const _Divider(),
-                    _SummaryColumn(
-                      label: 'Harcanan',
-                      value: summary.expense,
-                      color: AppColors.danger,
-                    ),
-                    const _Divider(),
-                    _SummaryColumn(
-                      label: 'Kalan',
-                      value: budgetsAsync.when(
-                            data: (b) =>
-                                b.fold(0.0, (s, e) => s + e.limitAmount),
+                    child: Row(
+                      children: [
+                        _SummaryColumn(
+                          label: 'Toplam Bütçe',
+                          value: budgetsAsync.when(
+                            data:
+                                (b) => b.fold(0.0, (s, e) => s + e.limitAmount),
                             loading: () => 0.0,
                             error: (_, __) => 0.0,
-                          ) -
-                          summary.expense,
-                      color: AppColors.success,
+                          ),
+                          color: AppColors.textPrimary,
+                        ),
+                        const _Divider(),
+                        _SummaryColumn(
+                          label: 'Harcanan',
+                          value: summary.expense,
+                          color: AppColors.danger,
+                        ),
+                        const _Divider(),
+                        _SummaryColumn(
+                          label: 'Kalan',
+                          value:
+                              budgetsAsync.when(
+                                data:
+                                    (b) => b.fold(
+                                      0.0,
+                                      (s, e) => s + e.limitAmount,
+                                    ),
+                                loading: () => 0.0,
+                                error: (_, __) => 0.0,
+                              ) -
+                              summary.expense,
+                          color: AppColors.success,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
@@ -125,26 +132,29 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
                 );
               }
               return Column(
-                children: budgets
-                    .map((b) => _BudgetCard(budget: b, onRefresh: _refresh))
-                    .toList(),
+                children:
+                    budgets
+                        .map((b) => _BudgetCard(budget: b, onRefresh: _refresh))
+                        .toList(),
               );
             },
-            loading: () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.accent,
+            loading:
+                () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            error: (_, __) => const Center(
-              child: Text(
-                'Bütçeler yüklenemedi',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
+            error:
+                (_, __) => const Center(
+                  child: Text(
+                    'Bütçeler yüklenemedi',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
           ),
         ],
       ),
@@ -174,109 +184,126 @@ class _BudgetScreenState extends ConsumerState<BudgetScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: StatefulBuilder(
-          builder: (ctx, setSheetState) => Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Yeni Bütçe Limiti',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Kategori Seç',
-                style:
-                    TextStyle(color: AppColors.textSecondary, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: TransactionCategory.values
-                    .where((c) => c != TransactionCategory.income)
-                    .map((cat) {
-                  final isSel = selected == cat;
-                  return GestureDetector(
-                    onTap: () => setSheetState(() => selected = cat),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isSel
-                            ? AppColors.accent.withOpacity(0.2)
-                            : AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isSel
-                              ? AppColors.accent
-                              : Colors.transparent,
-                        ),
-                      ),
-                      child: Text(
-                        '${cat.emoji} ${cat.displayNameTr}',
+      builder:
+          (ctx) => Padding(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: StatefulBuilder(
+              builder:
+                  (ctx, setSheetState) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Yeni Bütçe Limiti',
                         style: TextStyle(
-                          color: isSel
-                              ? AppColors.accent
-                              : AppColors.textSecondary,
-                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  hintText: 'Aylık limit (TL)',
-                  prefixText: '₺ ',
-                  prefixStyle: TextStyle(color: AppColors.accent),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (selected == null) return;
-                    final amount = double.tryParse(controller.text);
-                    if (amount == null || amount <= 0) return;
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Kategori Seç',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children:
+                            TransactionCategory.values
+                                .where((c) => c != TransactionCategory.income)
+                                .map((cat) {
+                                  final isSel = selected == cat;
+                                  return GestureDetector(
+                                    onTap:
+                                        () =>
+                                            setSheetState(() => selected = cat),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            isSel
+                                                ? AppColors.accent.withOpacity(
+                                                  0.2,
+                                                )
+                                                : AppColors.surfaceLight,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color:
+                                              isSel
+                                                  ? AppColors.accent
+                                                  : Colors.transparent,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${cat.emoji} ${cat.displayNameTr}',
+                                        style: TextStyle(
+                                          color:
+                                              isSel
+                                                  ? AppColors.accent
+                                                  : AppColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                })
+                                .toList(),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: controller,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        decoration: const InputDecoration(
+                          hintText: 'Aylık limit (TL)',
+                          prefixText: '₺ ',
+                          prefixStyle: TextStyle(color: AppColors.accent),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (selected == null) return;
+                            final amount = double.tryParse(controller.text);
+                            if (amount == null || amount <= 0) return;
 
-                    final now = DateTime.now();
-                    final budget = Budget(
-                      id: const Uuid().v4(),
-                      category: selected!,
-                      limitAmount: amount,
-                      spentAmount: 0,
-                      month: DateTime(now.year, now.month),
-                    );
+                            final now = DateTime.now();
+                            final budget = Budget(
+                              id: const Uuid().v4(),
+                              category: selected!,
+                              limitAmount: amount,
+                              spentAmount: 0,
+                              month: DateTime(now.year, now.month),
+                            );
 
-                    await ref.read(dbHelperProvider).upsertBudget(budget);
-                    _refresh();
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                  child: const Text('Kaydet'),
-                ),
-              ),
-            ],
+                            await ref
+                                .read(dbHelperProvider)
+                                .upsertBudget(budget);
+                            _refresh();
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          },
+                          child: const Text('Kaydet'),
+                        ),
+                      ),
+                    ],
+                  ),
+            ),
           ),
-        ),
-      ),
     );
   }
 }
@@ -297,9 +324,10 @@ class _BudgetCard extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: budget.status == BudgetStatus.danger
-                ? AppColors.danger.withOpacity(0.3)
-                : budget.status == BudgetStatus.warning
+            color:
+                budget.status == BudgetStatus.danger
+                    ? AppColors.danger.withOpacity(0.3)
+                    : budget.status == BudgetStatus.warning
                     ? AppColors.warning.withOpacity(0.3)
                     : const Color(0xFF1F2937),
             width: 1,
@@ -318,8 +346,11 @@ class _BudgetCard extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber,
-                        color: AppColors.danger, size: 16),
+                    const Icon(
+                      Icons.warning_amber,
+                      color: AppColors.danger,
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -386,10 +417,6 @@ class _Divider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 40,
-      color: const Color(0xFF1F2937),
-    );
+    return Container(width: 1, height: 40, color: const Color(0xFF1F2937));
   }
 }

@@ -1,6 +1,5 @@
 // İşlem ekleme ve düzenleme ekranı
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -8,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
+import '../../core/utils/money_parser.dart';
 
 /// İşlem ekleme ve düzenleme ekranı.
 ///
@@ -96,21 +96,24 @@ class _AddEditTransactionScreenState
                 ),
               ],
               selected: {_isExpense},
-              onSelectionChanged: (set) => setState(() {
-                _isExpense = set.first;
-                // Türe göre uygun varsayılan kategori seç
-                if (_isExpense) {
-                  if (_selectedCategory == TransactionCategory.income) {
-                    _selectedCategory = TransactionCategory.other;
-                  }
-                } else {
-                  _selectedCategory = TransactionCategory.income;
-                }
-              }),
+              onSelectionChanged:
+                  (set) => setState(() {
+                    _isExpense = set.first;
+                    // Türe göre uygun varsayılan kategori seç
+                    if (_isExpense) {
+                      if (_selectedCategory == TransactionCategory.income) {
+                        _selectedCategory = TransactionCategory.other;
+                      }
+                    } else {
+                      _selectedCategory = TransactionCategory.income;
+                    }
+                  }),
               style: ButtonStyle(
                 backgroundColor: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
-                    return _isExpense ? Colors.redAccent : Colors.greenAccent.shade700;
+                    return _isExpense
+                        ? Colors.redAccent
+                        : Colors.greenAccent.shade700;
                   }
                   return AppColors.surface;
                 }),
@@ -124,10 +127,11 @@ class _AddEditTransactionScreenState
             const SizedBox(height: 8),
             TextFormField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-              ],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              // Türkçe format (12,50 / 1.234,56) desteklensin.
+              // Doğrulama parseMoneyAmount() validator ile yapılır; formatter kısıtlanmaz.
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 24,
@@ -145,8 +149,10 @@ class _AddEditTransactionScreenState
               ),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Tutar giriniz';
-                final amount = double.tryParse(v);
-                if (amount == null || amount <= 0) return 'Geçerli bir tutar giriniz';
+                final amount = parseMoneyAmount(v);
+                if (amount == null || amount <= 0) {
+                  return 'Geçerli bir tutar giriniz (örn: 12,50 veya 1.234,56)';
+                }
                 if (amount > 9999999) return 'Tutar çok büyük';
                 return null;
               },
@@ -183,22 +189,37 @@ class _AddEditTransactionScreenState
               onTap: _pickDate,
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.textSecondary.withAlpha(80)),
+                  border: Border.all(
+                    color: AppColors.textSecondary.withAlpha(80),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today, color: AppColors.accent, size: 20),
+                    const Icon(
+                      Icons.calendar_today,
+                      color: AppColors.accent,
+                      size: 20,
+                    ),
                     const SizedBox(width: 12),
                     Text(
-                      DateFormat('d MMMM yyyy, EEEE', 'tr_TR').format(_selectedDate),
+                      DateFormat(
+                        'd MMMM yyyy, EEEE',
+                        'tr_TR',
+                      ).format(_selectedDate),
                       style: const TextStyle(color: AppColors.textPrimary),
                     ),
                     const Spacer(),
-                    const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textSecondary,
+                    ),
                   ],
                 ),
               ),
@@ -210,24 +231,34 @@ class _AddEditTransactionScreenState
             _SectionLabel(label: 'Kategori'),
             const SizedBox(height: 8),
             DropdownButtonFormField<TransactionCategory>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               dropdownColor: AppColors.surface,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.category_outlined, color: AppColors.accent),
+                prefixIcon: Icon(
+                  Icons.category_outlined,
+                  color: AppColors.accent,
+                ),
               ),
-              items: TransactionCategory.values
-                  .where((cat) {
-                    // Gelir seçiliyse sadece income göster, gider seçiliyse income gizle
-                    if (_isExpense) return cat != TransactionCategory.income;
-                    return cat == TransactionCategory.income;
-                  })
-                  .map((cat) => DropdownMenuItem(
-                        value: cat,
-                        child: Text('${cat.emoji}  ${cat.displayNameTr}'),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedCategory = v ?? TransactionCategory.other),
+              items:
+                  TransactionCategory.values
+                      .where((cat) {
+                        // Gelir seçiliyse sadece income göster, gider seçiliyse income gizle
+                        if (_isExpense)
+                          return cat != TransactionCategory.income;
+                        return cat == TransactionCategory.income;
+                      })
+                      .map(
+                        (cat) => DropdownMenuItem(
+                          value: cat,
+                          child: Text('${cat.emoji}  ${cat.displayNameTr}'),
+                        ),
+                      )
+                      .toList(),
+              onChanged:
+                  (v) => setState(
+                    () => _selectedCategory = v ?? TransactionCategory.other,
+                  ),
             ),
 
             const SizedBox(height: 32),
@@ -237,13 +268,14 @@ class _AddEditTransactionScreenState
               height: 52,
               child: ElevatedButton.icon(
                 onPressed: _isSaving ? null : _save,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(_isEditing ? Icons.save : Icons.add),
+                icon:
+                    _isSaving
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : Icon(_isEditing ? Icons.save : Icons.add),
                 label: Text(
                   _isEditing ? 'Değişiklikleri Kaydet' : 'İşlemi Ekle',
                   style: const TextStyle(fontSize: 16),
@@ -271,12 +303,13 @@ class _AddEditTransactionScreenState
       firstDate: DateTime(2020),
       lastDate: DateTime.now(), // Gelecek tarihe izin verme
       locale: const Locale('tr', 'TR'),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.dark(primary: AppColors.accent),
-        ),
-        child: child!,
-      ),
+      builder:
+          (context, child) => Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.dark(primary: AppColors.accent),
+            ),
+            child: child!,
+          ),
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
@@ -286,7 +319,7 @@ class _AddEditTransactionScreenState
     setState(() => _isSaving = true);
 
     try {
-      final amount = double.parse(_amountController.text);
+      final amount = parseMoneyAmount(_amountController.text) ?? 0.0;
       final finalAmount = _isExpense ? -amount : amount;
 
       final tx = Transaction(
@@ -305,13 +338,13 @@ class _AddEditTransactionScreenState
       final repo = ref.read(transactionRepositoryProvider);
 
       if (_isEditing) {
-        await repo.updateTransaction(tx);
+        // isManualEdit: true → kullanıcı değiştirdi, AI override yapmamalı
+        await repo.updateTransaction(tx, isManualEdit: true);
       } else {
         await repo.addTransaction(tx);
       }
 
       if (mounted) {
-        // Tüm provider'ları yenile
         ref.invalidate(currentMonthTransactionsProvider);
         ref.invalidate(allTransactionsProvider);
         ref.invalidate(recentTransactionsProvider);
@@ -319,7 +352,7 @@ class _AddEditTransactionScreenState
         ref.invalidate(monthlySummaryProvider);
         ref.invalidate(currentMonthBudgetsProvider);
 
-        Navigator.pop(context, true);
+        // Snackbar'ı pop'tan önce göster — disposed context riski yok
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(_isEditing ? 'İşlem güncellendi' : 'İşlem eklendi'),
@@ -327,6 +360,7 @@ class _AddEditTransactionScreenState
             behavior: SnackBarBehavior.floating,
           ),
         );
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -346,25 +380,29 @@ class _AddEditTransactionScreenState
   Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('İşlemi Sil', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text(
-          'Bu işlem kalıcı olarak silinecek. Devam etmek istiyor musunuz?',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('İptal'),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'İşlemi Sil',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: const Text(
+              'Bu işlem kalıcı olarak silinecek. Devam etmek istiyor musunuz?',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('İptal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                child: const Text('Sil'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true && mounted) {

@@ -53,18 +53,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             Padding(
               padding: const EdgeInsets.all(24),
               child: Row(
-                children: List.generate(3, (i) => Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 4),
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: i <= _currentPage
-                          ? AppColors.accent
-                          : AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(2),
+                children: List.generate(
+                  3,
+                  (i) => Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 4),
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color:
+                            i <= _currentPage
+                                ? AppColors.accent
+                                : AppColors.surfaceLight,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                )),
+                ),
               ),
             ),
 
@@ -104,9 +108,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   const Spacer(),
                   ElevatedButton(
                     onPressed: _currentPage == 2 ? _finish : _nextPage,
-                    child: Text(
-                      _currentPage == 2 ? 'Başla!' : 'Devam',
-                    ),
+                    child: Text(_currentPage == 2 ? 'Başla!' : 'Devam'),
                   ),
                 ],
               ),
@@ -146,7 +148,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
 
     final box = Hive.box<String>(HiveBoxes.userProfile);
-    await box.put(AppConstants.kHiveKeyUserProfile, jsonEncode(profile.toJson()));
+    await box.put(
+      AppConstants.kHiveKeyUserProfile,
+      jsonEncode(profile.toJson()),
+    );
 
     ref.invalidate(userProfileProvider);
     ref.invalidate(geminiServiceProvider);
@@ -190,15 +195,21 @@ class _WelcomePage extends StatelessWidget {
           const Text(
             'Gemini 2.0 Flash destekli 3 otonom ajan seni finansal hedeflerine ulaştıracak.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 16,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
           ),
           const SizedBox(height: 40),
-          _FeatureRow(icon: Icons.analytics_outlined, text: 'Harcamalarını otomatik kategorize eder'),
-          _FeatureRow(icon: Icons.account_balance_wallet_outlined, text: 'Bütçe aşımında uyarı ve öneri verir'),
-          _FeatureRow(icon: Icons.trending_up, text: 'Tasarruflarını yatırıma yönlendirir'),
+          _FeatureRow(
+            icon: Icons.analytics_outlined,
+            text: 'Harcamalarını otomatik kategorize eder',
+          ),
+          _FeatureRow(
+            icon: Icons.account_balance_wallet_outlined,
+            text: 'Bütçe aşımında uyarı ve öneri verir',
+          ),
+          _FeatureRow(
+            icon: Icons.trending_up,
+            text: 'Tasarruflarını yatırıma yönlendirir',
+          ),
         ],
       ),
     );
@@ -221,7 +232,7 @@ class _FeatureRow extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.15),
+              color: AppColors.accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: AppColors.accent, size: 18),
@@ -276,7 +287,10 @@ class _ApiKeyPage extends StatelessWidget {
             decoration: const InputDecoration(
               hintText: 'AIzaSy...',
               labelText: 'API Key',
-              prefixIcon: Icon(Icons.vpn_key_outlined, color: AppColors.textSecondary),
+              prefixIcon: Icon(
+                Icons.vpn_key_outlined,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -293,7 +307,10 @@ class _ApiKeyPage extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'API key cihazında şifreli olarak saklanır, hiçbir sunucuya gönderilmez.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -366,60 +383,68 @@ class _ProfilePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...RiskProfile.values.map((rp) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: GestureDetector(
-                  onTap: () => onRiskChanged(rp),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: selectedRisk == rp
-                          ? AppColors.accent.withOpacity(0.1)
-                          : AppColors.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: selectedRisk == rp
-                            ? AppColors.accent
-                            : const Color(0xFF1F2937),
-                        width: selectedRisk == rp ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(rp.emoji, style: const TextStyle(fontSize: 22)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                rp.displayNameTr,
-                                style: TextStyle(
-                                  color: selectedRisk == rp
-                                      ? AppColors.accent
-                                      : AppColors.textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                rp.descriptionTr,
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (selectedRisk == rp)
-                          const Icon(Icons.check_circle,
-                              color: AppColors.accent, size: 20),
-                      ],
+          ...RiskProfile.values.map(
+            (rp) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: () => onRiskChanged(rp),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color:
+                        selectedRisk == rp
+                            ? AppColors.accent.withValues(alpha: 0.1)
+                            : AppColors.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color:
+                          selectedRisk == rp
+                              ? AppColors.accent
+                              : const Color(0xFF1F2937),
+                      width: selectedRisk == rp ? 1.5 : 1,
                     ),
                   ),
+                  child: Row(
+                    children: [
+                      Text(rp.emoji, style: const TextStyle(fontSize: 22)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              rp.displayNameTr,
+                              style: TextStyle(
+                                color:
+                                    selectedRisk == rp
+                                        ? AppColors.accent
+                                        : AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              rp.descriptionTr,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (selectedRisk == rp)
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppColors.accent,
+                          size: 20,
+                        ),
+                    ],
+                  ),
                 ),
-              )),
+              ),
+            ),
+          ),
         ],
       ),
     );

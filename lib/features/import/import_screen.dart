@@ -6,12 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
+import '../../core/repositories/transaction_repository.dart';
 import '../../core/services/import_service.dart';
 
 /// Banka ekstresi içe aktarma ekranı.
 ///
-/// Akış:
-///   1. Dosya Seç → 2. Yükleme → 3. Önizleme → 4. Kaydet
+/// Akış: 1. Dosya Seç → 2. Yükleme → 3. Önizleme → 4. Tamamlandı
 class ImportScreen extends ConsumerStatefulWidget {
   const ImportScreen({super.key});
 
@@ -29,6 +29,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   List<bool> _selectedFlags = [];
   bool _isSaving = false;
   String? _errorMessage;
+  BulkImportResult? _importStats;
 
   final _importService = ImportService();
 
@@ -64,7 +65,6 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Gizlilik bilgisi
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -80,18 +80,13 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                   child: Text(
                     'Dosyanız yalnızca bu cihazda işlenir. '
                     'Hiçbir sunucuya yüklenmez.',
-                    style: TextStyle(
-                      color: AppColors.accent,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: AppColors.accent, fontSize: 13),
                   ),
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 32),
-
           if (_errorMessage != null) ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -106,23 +101,17 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             ),
             const SizedBox(height: 16),
           ],
-
-          // Excel seçim kartı
           _FileTypeCard(
             icon: Icons.table_chart_outlined,
-            title: 'Excel / CSV Ekstresi',
-            subtitle: '.xlsx formatında banka ekstresi',
+            title: 'Excel Ekstresi (.xlsx)',
+            subtitle: 'Garanti, Ziraat, İş Bankası, Akbank, Yapı Kredi',
             color: Colors.greenAccent.shade700,
             onTap: _pickExcelFile,
           ),
-
           const SizedBox(height: 16),
-
-          // Bilgi metni
           const Text(
-            'Garanti, Ziraat, İş Bankası, Akbank, Yapı Kredi '
-            'Excel ekstrelerini destekler.\n\n'
-            'Bankalar arası menüsünden "Excel olarak indir" seçeneğini kullanın.',
+            'Bankalar arası menüsünden "Excel olarak indir" seçeneğini '
+            'kullanarak .xlsx formatında dosyayı indirin.',
             style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
@@ -164,7 +153,10 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           const SizedBox(height: 8),
           Text(
             _progressStatus,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -179,7 +171,6 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
     return Column(
       children: [
-        // Özet banner
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -197,13 +188,24 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               const SizedBox(height: 4),
               Text(
                 '$selectedCount / ${result.transactions.length} seçili',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
               ),
+              if (result.parseErrors > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '${result.parseErrors} satır okunamadı (geçersiz tarih/tutar)',
+                  style: const TextStyle(
+                    color: Colors.orangeAccent,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
-
-        // İşlem listesi
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -212,8 +214,8 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               final tx = result.transactions[i];
               return CheckboxListTile(
                 value: _selectedFlags[i],
-                onChanged: (v) =>
-                    setState(() => _selectedFlags[i] = v ?? false),
+                onChanged:
+                    (v) => setState(() => _selectedFlags[i] = v ?? false),
                 activeColor: AppColors.accent,
                 title: Text(
                   tx.description,
@@ -234,7 +236,8 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 secondary: Text(
                   '${tx.amount >= 0 ? '+' : ''}₺${tx.amount.abs().toStringAsFixed(2)}',
                   style: TextStyle(
-                    color: tx.amount >= 0 ? Colors.greenAccent : Colors.redAccent,
+                    color:
+                        tx.amount >= 0 ? Colors.greenAccent : Colors.redAccent,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -244,8 +247,6 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             },
           ),
         ),
-
-        // Kaydet butonu
         Padding(
           padding: const EdgeInsets.all(16),
           child: SizedBox(
@@ -253,13 +254,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             height: 52,
             child: ElevatedButton.icon(
               onPressed: _isSaving || selectedCount == 0 ? null : _saveSelected,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_alt),
+              icon:
+                  _isSaving
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : const Icon(Icons.save_alt),
               label: Text(
                 '$selectedCount İşlemi İçe Aktar',
                 style: const TextStyle(fontSize: 16),
@@ -280,7 +282,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
   // ─── ADIM 4: TAMAMLANDI ───
   Widget _buildDoneStep() {
-    final savedCount = _selectedFlags.where((f) => f).length;
+    final stats = _importStats;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -294,7 +296,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              '$savedCount işlem başarıyla eklendi',
+              stats != null
+                  ? '${stats.added} işlem eklendi'
+                  : 'İşlemler eklendi',
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 20,
@@ -302,9 +306,30 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               ),
               textAlign: TextAlign.center,
             ),
+            if (stats != null) ...[
+              const SizedBox(height: 8),
+              if (stats.skipped > 0)
+                Text(
+                  '${stats.skipped} işlem zaten mevcut (atlandı)',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              if (stats.errors > 0)
+                Text(
+                  '${stats.errors} satır okunamadı',
+                  style: const TextStyle(
+                    color: Colors.orangeAccent,
+                    fontSize: 13,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+            ],
             const SizedBox(height: 8),
             const Text(
-              'İşlemler Gemini tarafından analiz edilecek.',
+              'Eklenen işlemler Gemini tarafından analiz edilecek.',
               style: TextStyle(color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
@@ -314,7 +339,10 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -332,7 +360,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx', 'xls', 'csv'],
+      allowedExtensions: ['xlsx'],
       withData: true,
     );
 
@@ -343,16 +371,28 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       return;
     }
 
+    // .xls veya .csv seçilirse (system picker bypass durumunda) hata göster
+    final ext = file.extension?.toLowerCase() ?? '';
+    if (ext != 'xlsx') {
+      setState(
+        () =>
+            _errorMessage =
+                'Yalnızca .xlsx dosyası desteklenmektedir. Lütfen Excel formatında (.xlsx) dışa aktarın.',
+      );
+      return;
+    }
+
     setState(() => _step = _ImportStep.loading);
 
     try {
       final importResult = await _importService.importFromExcel(
         bytes: file.bytes!,
         onProgress: (p, s) {
-          if (mounted) setState(() {
-            _progress = p;
-            _progressStatus = s;
-          });
+          if (mounted)
+            setState(() {
+              _progress = p;
+              _progressStatus = s;
+            });
         },
       );
 
@@ -364,19 +404,17 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         });
       }
     } on ImportException catch (e) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _step = _ImportStep.selectFile;
           _errorMessage = e.message;
         });
-      }
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _step = _ImportStep.selectFile;
           _errorMessage = 'Beklenmedik hata: $e';
         });
-      }
     }
   }
 
@@ -389,14 +427,18 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
     try {
       final repo = ref.read(transactionRepositoryProvider);
-      await repo.addBulk(toSave);
+      final stats = await repo.addBulk(toSave);
 
       ref.invalidate(allTransactionsProvider);
       ref.invalidate(currentMonthTransactionsProvider);
       ref.invalidate(monthlySpendingProvider);
       ref.invalidate(monthlySummaryProvider);
 
-      if (mounted) setState(() => _step = _ImportStep.done);
+      if (mounted)
+        setState(() {
+          _importStats = stats;
+          _step = _ImportStep.done;
+        });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

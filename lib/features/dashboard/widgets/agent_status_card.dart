@@ -30,9 +30,10 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.4,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -114,55 +115,56 @@ class _AgentStatusCardState extends ConsumerState<AgentStatusCard>
   _CardConfig _getConfig(OrchestratorState state) {
     return switch (state) {
       OrchestratorStateIdle idle => _CardConfig(
-          title: 'ALTERA Ajan Hazır',
-          subtitle: idle.lastRunAt != null
-              ? 'Son çalışma: ${_formatTime(idle.lastRunAt!)}'
-              : 'Döngüyü başlatmak için FAB\'a bas',
-          icon: Icons.smart_toy_outlined,
-          iconColor: AppColors.accent,
-          iconBg: AppColors.accent.withOpacity(0.15),
-          borderColor: AppColors.accent,
-        ),
+        title: 'ALTERA Ajan Hazır',
+        subtitle:
+            idle.lastRunAt != null
+                ? 'Son çalışma: ${_formatTime(idle.lastRunAt!)}'
+                : 'Döngüyü başlatmak için FAB\'a bas',
+        icon: Icons.smart_toy_outlined,
+        iconColor: AppColors.accent,
+        iconBg: AppColors.accent.withOpacity(0.15),
+        borderColor: AppColors.accent,
+      ),
       OrchestratorStateCollecting() => _CardConfig(
-          title: 'Veri Toplanıyor...',
-          subtitle: 'Banka işlemleri çekiliyor',
-          icon: Icons.cloud_download_outlined,
-          iconColor: AppColors.info,
-          iconBg: AppColors.info.withOpacity(0.15),
-          borderColor: AppColors.info,
-        ),
+        title: 'Veri Toplanıyor...',
+        subtitle: 'Banka işlemleri çekiliyor',
+        icon: Icons.cloud_download_outlined,
+        iconColor: AppColors.info,
+        iconBg: AppColors.info.withOpacity(0.15),
+        borderColor: AppColors.info,
+      ),
       OrchestratorStateAnalyzing a => _CardConfig(
-          title: 'Gemini Analiz Ediyor...',
-          subtitle: '${a.collectedCount} yeni işlem kategorize ediliyor',
-          icon: Icons.auto_awesome,
-          iconColor: AppColors.accent,
-          iconBg: AppColors.accent.withOpacity(0.15),
-          borderColor: AppColors.accent,
-        ),
+        title: 'Gemini Analiz Ediyor...',
+        subtitle: '${a.collectedCount} yeni işlem kategorize ediliyor',
+        icon: Icons.auto_awesome,
+        iconColor: AppColors.accent,
+        iconBg: AppColors.accent.withOpacity(0.15),
+        borderColor: AppColors.accent,
+      ),
       OrchestratorStateActing a => _CardConfig(
-          title: 'Aksiyonlar Alınıyor...',
-          subtitle: '${a.analyzedCount} işlem analiz edildi',
-          icon: Icons.flash_on,
-          iconColor: AppColors.warning,
-          iconBg: AppColors.warning.withOpacity(0.15),
-          borderColor: AppColors.warning,
-        ),
+        title: 'Aksiyonlar Alınıyor...',
+        subtitle: '${a.analyzedCount} işlem analiz edildi',
+        icon: Icons.flash_on,
+        iconColor: AppColors.warning,
+        iconBg: AppColors.warning.withOpacity(0.15),
+        borderColor: AppColors.warning,
+      ),
       OrchestratorStateCompleted() => _CardConfig(
-          title: 'Döngü Tamamlandı ✓',
-          subtitle: 'Tüm ajanlar başarıyla çalıştı',
-          icon: Icons.check_circle_outline,
-          iconColor: AppColors.success,
-          iconBg: AppColors.success.withOpacity(0.15),
-          borderColor: AppColors.success,
-        ),
+        title: 'Döngü Tamamlandı ✓',
+        subtitle: 'Tüm ajanlar başarıyla çalıştı',
+        icon: Icons.check_circle_outline,
+        iconColor: AppColors.success,
+        iconBg: AppColors.success.withOpacity(0.15),
+        borderColor: AppColors.success,
+      ),
       OrchestratorStateError e => _CardConfig(
-          title: 'Hata Oluştu',
-          subtitle: e.message,
-          icon: Icons.error_outline,
-          iconColor: AppColors.danger,
-          iconBg: AppColors.danger.withOpacity(0.15),
-          borderColor: AppColors.danger,
-        ),
+        title: 'Hata Oluştu',
+        subtitle: e.message,
+        icon: Icons.error_outline,
+        iconColor: AppColors.danger,
+        iconBg: AppColors.danger.withOpacity(0.15),
+        borderColor: AppColors.danger,
+      ),
     };
   }
 
@@ -220,10 +222,7 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           '$label: ',
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 10,
-          ),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
         ),
         Text(
           value,

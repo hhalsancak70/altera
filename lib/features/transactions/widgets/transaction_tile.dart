@@ -39,8 +39,10 @@ class TransactionTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
-                    child: Text(tx.category.emoji,
-                        style: const TextStyle(fontSize: 18)),
+                    child: Text(
+                      tx.category.emoji,
+                      style: const TextStyle(fontSize: 18),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -88,7 +90,7 @@ class TransactionTile extends StatelessWidget {
                 // Kategori etiketi
                 _Badge(
                   label: tx.category.displayNameTr,
-                  color: AppColors.textSecondary.withOpacity(0.15),
+                  color: AppColors.textSecondary.withValues(alpha: 0.15),
                   textColor: AppColors.textSecondary,
                 ),
                 const SizedBox(width: 6),
@@ -96,14 +98,16 @@ class TransactionTile extends StatelessWidget {
                 if (tx.isAnalyzed)
                   _Badge(
                     label: tx.type.displayNameTr,
-                    color: tx.type == TransactionType.income
-                        ? AppColors.success.withOpacity(0.15)
-                        : tx.type == TransactionType.need
-                            ? AppColors.info.withOpacity(0.15)
-                            : AppColors.warning.withOpacity(0.15),
-                    textColor: tx.type == TransactionType.income
-                        ? AppColors.success
-                        : tx.type == TransactionType.need
+                    color:
+                        tx.type == TransactionType.income
+                            ? AppColors.success.withValues(alpha: 0.15)
+                            : tx.type == TransactionType.need
+                            ? AppColors.info.withValues(alpha: 0.15)
+                            : AppColors.warning.withValues(alpha: 0.15),
+                    textColor:
+                        tx.type == TransactionType.income
+                            ? AppColors.success
+                            : tx.type == TransactionType.need
                             ? AppColors.info
                             : AppColors.warning,
                   )
@@ -128,64 +132,81 @@ class TransactionTile extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      builder:
+          (ctx) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tx.category.emoji, style: const TextStyle(fontSize: 32)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    tx.description,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+                Row(
+                  children: [
+                    Text(
+                      tx.category.emoji,
+                      style: const TextStyle(fontSize: 32),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        tx.description,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (onEdit != null)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: AppColors.accent,
+                        ),
+                        tooltip: 'Düzenle',
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          onEdit();
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _DetailRow(
+                  label: 'Tutar',
+                  value:
+                      '${tx.amount > 0 ? '+' : ''}₺${tx.amount.abs().toStringAsFixed(2)}',
+                  valueColor:
+                      tx.amount > 0 ? AppColors.income : AppColors.expense,
+                ),
+                _DetailRow(
+                  label: 'Tarih',
+                  value:
+                      '${tx.date.day}.${tx.date.month}.${tx.date.year} ${tx.date.hour}:${tx.date.minute.toString().padLeft(2, '0')}',
+                ),
+                _DetailRow(label: 'Kategori', value: tx.category.displayNameTr),
+                _DetailRow(label: 'Tür', value: tx.type.displayNameTr),
+                if (tx.aiReason != null) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    '✨ Gemini Gerekçesi',
+                    style: TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-                if (onEdit != null)
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, color: AppColors.accent),
-                    tooltip: 'Düzenle',
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      onEdit();
-                    },
+                  const SizedBox(height: 4),
+                  Text(
+                    tx.aiReason!,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
+                ],
               ],
             ),
-            const SizedBox(height: 16),
-            _DetailRow(
-              label: 'Tutar',
-              value: '${tx.amount > 0 ? '+' : ''}₺${tx.amount.abs().toStringAsFixed(2)}',
-              valueColor: tx.amount > 0 ? AppColors.income : AppColors.expense,
-            ),
-            _DetailRow(
-              label: 'Tarih',
-              value: '${tx.date.day}.${tx.date.month}.${tx.date.year} ${tx.date.hour}:${tx.date.minute.toString().padLeft(2, '0')}',
-            ),
-            _DetailRow(label: 'Kategori', value: tx.category.displayNameTr),
-            _DetailRow(label: 'Tür', value: tx.type.displayNameTr),
-            if (tx.aiReason != null) ...[
-              const SizedBox(height: 12),
-              const Text(
-                '✨ Gemini Gerekçesi',
-                style: TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                tx.aiReason!,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
     );
   }
 }
@@ -226,11 +247,7 @@ class _DetailRow extends StatelessWidget {
   final String value;
   final Color? valueColor;
 
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
+  const _DetailRow({required this.label, required this.value, this.valueColor});
 
   @override
   Widget build(BuildContext context) {

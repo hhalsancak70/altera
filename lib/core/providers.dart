@@ -36,12 +36,12 @@ final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
 });
 
 /// Yatırım fonu servisi
-final investmentFundServiceProvider =
-    Provider<InvestmentFundService>((ref) => InvestmentFundService());
+final investmentFundServiceProvider = Provider<InvestmentFundService>(
+  (ref) => InvestmentFundService(),
+);
 
 /// Import servisi — PDF/Excel içe aktarma
-final importServiceProvider =
-    Provider<ImportService>((ref) => ImportService());
+final importServiceProvider = Provider<ImportService>((ref) => ImportService());
 
 /// Aylık döngü servisi
 final cycleServiceProvider = Provider<CycleService>((ref) {
@@ -52,12 +52,18 @@ final cycleServiceProvider = Provider<CycleService>((ref) {
 });
 
 /// Bildirim servisi (zaten initialize edilmiş)
-final notificationServiceProvider =
-    Provider<NotificationService>((ref) => NotificationService.instance);
+final notificationServiceProvider = Provider<NotificationService>(
+  (ref) => NotificationService.instance,
+);
 
-/// Gemini servisi - async başlatma (API key güvenli depolamadan okunur)
+/// Gemini servisi - async başlatma (API key güvenli depolamadan okunur,
+/// key yoksa disabled modunda çalışır ve her yerde varsayılan mesajlar döner)
 final geminiServiceProvider = FutureProvider<GeminiService>((ref) async {
-  return GeminiService.initialize();
+  try {
+    return await GeminiService.initialize();
+  } catch (_) {
+    return GeminiService.disabled();
+  }
 });
 
 /// Hive'dan kullanıcı profilini okur
@@ -74,19 +80,16 @@ final userProfileProvider = FutureProvider<UserProfile>((ref) async {
 
 /// DataCollectionAgent instance'ı
 final dataCollectionAgentProvider = Provider<DataCollectionAgent>((ref) {
-  return DataCollectionAgent(
-    dbHelper: ref.read(dbHelperProvider),
-  );
+  return DataCollectionAgent(dbHelper: ref.read(dbHelperProvider));
 });
 
 /// AnalysisAgent - Gemini servisine bağımlı
 final analysisAgentProvider = Provider<AnalysisAgent?>((ref) {
   final geminiAsync = ref.watch(geminiServiceProvider);
   return geminiAsync.when(
-    data: (gemini) => AnalysisAgent(
-      gemini: gemini,
-      dbHelper: ref.read(dbHelperProvider),
-    ),
+    data:
+        (gemini) =>
+            AnalysisAgent(gemini: gemini, dbHelper: ref.read(dbHelperProvider)),
     loading: () => null,
     error: (_, __) => null,
   );
@@ -96,12 +99,13 @@ final analysisAgentProvider = Provider<AnalysisAgent?>((ref) {
 final actionAgentProvider = Provider<ActionAgent?>((ref) {
   final geminiAsync = ref.watch(geminiServiceProvider);
   return geminiAsync.when(
-    data: (gemini) => ActionAgent(
-      dbHelper: ref.read(dbHelperProvider),
-      gemini: gemini,
-      notifications: ref.read(notificationServiceProvider),
-      fundService: ref.read(investmentFundServiceProvider),
-    ),
+    data:
+        (gemini) => ActionAgent(
+          dbHelper: ref.read(dbHelperProvider),
+          gemini: gemini,
+          notifications: ref.read(notificationServiceProvider),
+          fundService: ref.read(investmentFundServiceProvider),
+        ),
     loading: () => null,
     error: (_, __) => null,
   );
@@ -115,24 +119,26 @@ final actionAgentProvider = Provider<ActionAgent?>((ref) {
 /// ve timer/state sıfırlanmaz.
 final orchestratorProvider =
     StateNotifierProvider<Orchestrator, OrchestratorState>((ref) {
-  final db = ref.read(dbHelperProvider);
+      final db = ref.read(dbHelperProvider);
 
-  return Orchestrator(
-    dataAgent: ref.read(dataCollectionAgentProvider),
-    dbHelper: db,
-    getAnalysisAgent: () =>
-        ref.read(analysisAgentProvider) ??
-        AnalysisAgent(gemini: GeminiService.withKey(''), dbHelper: db),
-    getActionAgent: () =>
-        ref.read(actionAgentProvider) ??
-        ActionAgent(
-          dbHelper: db,
-          gemini: GeminiService.withKey(''),
-          notifications: ref.read(notificationServiceProvider),
-          fundService: ref.read(investmentFundServiceProvider),
-        ),
-  );
-});
+      return Orchestrator(
+        dataAgent: ref.read(dataCollectionAgentProvider),
+        dbHelper: db,
+        getAnalysisAgent:
+            () =>
+                ref.read(analysisAgentProvider) ??
+                AnalysisAgent(gemini: GeminiService.disabled(), dbHelper: db),
+        getActionAgent:
+            () =>
+                ref.read(actionAgentProvider) ??
+                ActionAgent(
+                  dbHelper: db,
+                  gemini: GeminiService.disabled(),
+                  notifications: ref.read(notificationServiceProvider),
+                  fundService: ref.read(investmentFundServiceProvider),
+                ),
+      );
+    });
 
 // ─────────────────────────────────────────────────────────────
 // DATA PROVIDER'LARI
@@ -141,53 +147,50 @@ final orchestratorProvider =
 /// Bu ayın işlemleri - ajan döngüsü sonrası yenilenir
 final currentMonthTransactionsProvider =
     FutureProvider.autoDispose<List<Transaction>>((ref) async {
-  final db = ref.read(dbHelperProvider);
-  final now = DateTime.now();
-  return db.getTransactions(
-    fromDate: DateTime(now.year, now.month, 1),
-  );
-});
+      final db = ref.read(dbHelperProvider);
+      final now = DateTime.now();
+      return db.getTransactions(fromDate: DateTime(now.year, now.month, 1));
+    });
 
 /// Son N işlem - dashboard için
 final recentTransactionsProvider =
     FutureProvider.autoDispose<List<Transaction>>((ref) async {
-  final db = ref.read(dbHelperProvider);
-  final now = DateTime.now();
-  return db.getTransactions(
-    fromDate: DateTime(now.year, now.month, 1),
-    limit: AppConstants.kRecentTransactionsCount,
-  );
-});
+      final db = ref.read(dbHelperProvider);
+      final now = DateTime.now();
+      return db.getTransactions(
+        fromDate: DateTime(now.year, now.month, 1),
+        limit: AppConstants.kRecentTransactionsCount,
+      );
+    });
 
 /// Bu ayın bütçeleri
-final currentMonthBudgetsProvider =
-    FutureProvider.autoDispose<List<Budget>>((ref) async {
+final currentMonthBudgetsProvider = FutureProvider.autoDispose<List<Budget>>((
+  ref,
+) async {
   return ref.read(dbHelperProvider).getBudgetsForMonth(DateTime.now());
 });
 
 /// Son ajan logları
-final recentAgentLogsProvider =
-    FutureProvider.autoDispose<List<AgentLogEntry>>((ref) async {
-  return ref
-      .read(dbHelperProvider)
-      .getRecentLogs(limit: AppConstants.kDefaultLogLimit);
-});
+final recentAgentLogsProvider = FutureProvider.autoDispose<List<AgentLogEntry>>(
+  (ref) async {
+    return ref
+        .read(dbHelperProvider)
+        .getRecentLogs(limit: AppConstants.kDefaultLogLimit);
+  },
+);
 
 /// Bu ayın kategori bazlı harcama dağılımı
 final monthlySpendingProvider =
     FutureProvider.autoDispose<Map<TransactionCategory, double>>((ref) async {
-  return ref
-      .read(dbHelperProvider)
-      .getMonthlySpendingByCategory(DateTime.now());
-});
+      return ref
+          .read(dbHelperProvider)
+          .getMonthlySpendingByCategory(DateTime.now());
+    });
 
 /// Bu ayın gelir/gider özeti
 final monthlySummaryProvider = FutureProvider.autoDispose<
-    ({
-      double income,
-      double expense,
-      double savings,
-    })>((ref) async {
+  ({double income, double expense, double savings})
+>((ref) async {
   final db = ref.read(dbHelperProvider);
   final now = DateTime.now();
   final income = await db.getMonthlyIncome(now);
@@ -198,30 +201,34 @@ final monthlySummaryProvider = FutureProvider.autoDispose<
 /// Yatırım fonları listesi
 final investmentFundsProvider =
     FutureProvider.autoDispose<List<InvestmentFund>>((ref) async {
-  return ref.read(investmentFundServiceProvider).fetchInvestmentFunds();
-});
+      return ref.read(investmentFundServiceProvider).fetchInvestmentFunds();
+    });
 
 /// Canlı fiyat bağlamıyla portföy içgörüsü — widget tarafından bağlam hazırlanır
-final portfolioInsightsProvider =
-    FutureProvider.family<String, String>((ref, portfolioContext) async {
-  final gemini = await ref.read(geminiServiceProvider.future);
+/// ref.watch kullanılıyor: geminiServiceProvider (key) değiştiğinde otomatik yenilenir
+final portfolioInsightsProvider = FutureProvider.family<String, String>((
+  ref,
+  portfolioContext,
+) async {
+  final gemini = await ref.watch(geminiServiceProvider.future);
   return gemini.generatePortfolioInsights(portfolioContext);
 });
 
 /// Yatırım geçmişi
 final investmentHistoryProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  return ref.read(dbHelperProvider).getInvestmentHistory();
-});
+      return ref.read(dbHelperProvider).getInvestmentHistory();
+    });
 
 /// Aylık arşivler listesi
 final monthlyArchivesProvider =
     FutureProvider.autoDispose<List<MonthlyArchive>>((ref) async {
-  return ref.read(cycleServiceProvider).getAllArchives();
-});
+      return ref.read(cycleServiceProvider).getAllArchives();
+    });
 
 /// Tüm işlemler (filtrelenebilir)
-final allTransactionsProvider =
-    FutureProvider.autoDispose<List<Transaction>>((ref) async {
+final allTransactionsProvider = FutureProvider.autoDispose<List<Transaction>>((
+  ref,
+) async {
   return ref.read(dbHelperProvider).getTransactions();
 });

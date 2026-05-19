@@ -1,10 +1,12 @@
 // ALTERA Baş Ajan: Orchestrator - LangGraph ilhamlı durum makinesi
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../constants/app_constants.dart';
 import '../database/db_helper.dart';
+import '../database/hive_boxes.dart';
 import '../models/agent_log_entry.dart';
 import 'data_collection_agent.dart';
 import 'analysis_agent.dart';
@@ -71,17 +73,12 @@ class OrchestratorStateError extends OrchestratorState {
 /// ALTERA Baş Ajan: Orchestrator
 ///
 /// Akış: IDLE → COLLECTING → ANALYZING → ACTING → IDLE
-///
-/// Ajan örnekleri callback ile sağlanır — Gemini yüklendiğinde
-/// orchestrator yeniden yaratılmaz, her döngüde güncel ajanı okur.
 class Orchestrator extends StateNotifier<OrchestratorState> {
+  static const _hiveKeyAutoMode = 'auto_mode_active';
+
   final DataCollectionAgent _dataAgent;
   final DbHelper _dbHelper;
-
-  /// Her döngüde güncel AnalysisAgent'ı döndüren callback
   final AnalysisAgent Function() _getAnalysisAgent;
-
-  /// Her döngüde güncel ActionAgent'ı döndüren callback
   final ActionAgent Function() _getActionAgent;
 
   Timer? _autoTimer;
@@ -92,13 +89,37 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
     required DbHelper dbHelper,
     required AnalysisAgent Function() getAnalysisAgent,
     required ActionAgent Function() getActionAgent,
-  })  : _dataAgent = dataAgent,
-        _dbHelper = dbHelper,
-        _getAnalysisAgent = getAnalysisAgent,
-        _getActionAgent = getActionAgent,
-        super(const OrchestratorStateIdle());
+  }) : _dataAgent = dataAgent,
+       _dbHelper = dbHelper,
+       _getAnalysisAgent = getAnalysisAgent,
+       _getActionAgent = getActionAgent,
+       super(const OrchestratorStateIdle()) {
+    // Restart sonrası otomatik modu geri yükle
+    if (_loadPersistedAutoMode()) {
+      startAutoMode(persist: false);
+    }
+  }
 
-  /// Tek seferlik ajan döngüsü
+  // ─── Hive Kalıcı Ayar ──────────────────────────────────────
+
+  bool _loadPersistedAutoMode() {
+    try {
+      final box = Hive.box<String>(HiveBoxes.agentState);
+      return box.get(_hiveKeyAutoMode) == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _persistAutoMode(bool active) {
+    try {
+      final box = Hive.box<String>(HiveBoxes.agentState);
+      box.put(_hiveKeyAutoMode, active ? 'true' : 'false');
+    } catch (_) {}
+  }
+
+  // ─── Döngü ─────────────────────────────────────────────────
+
   Future<void> runOnce() async {
     if (state.isRunning) {
       _log('orchestrator', 'Döngü zaten çalışıyor, atlandı', LogLevel.warning);
@@ -107,7 +128,6 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
 
     _log('orchestrator', '─── Ajan döngüsü başladı ───', LogLevel.info);
 
-    // ─── AŞAMA 1: VERİ TOPLAMA ───
     state = const OrchestratorStateCollecting();
 
     late DataCollectionResult collectionResult;
@@ -117,13 +137,13 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
       state = OrchestratorStateError(message: 'Veri toplama hatası: $e');
       _log('orchestrator', 'Döngü hatayla sonlandı: $e', LogLevel.error);
       await Future.delayed(const Duration(seconds: 3));
-      state = const OrchestratorStateIdle();
+      if (mounted) state = const OrchestratorStateIdle();
       return;
     }
 
-    // ─── AŞAMA 2: GEMİNİ ANALİZİ ───
     state = OrchestratorStateAnalyzing(
-        collectedCount: collectionResult.newTransactionsCount);
+      collectedCount: collectionResult.newTransactionsCount,
+    );
 
     late AnalysisResult analysisResult;
     try {
@@ -138,8 +158,9 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
       );
     }
 
-    // ─── AŞAMA 3: AKSİYONLAR ───
-    state = OrchestratorStateActing(analyzedCount: analysisResult.analyzedCount);
+    state = OrchestratorStateActing(
+      analyzedCount: analysisResult.analyzedCount,
+    );
 
     late ActionResult actionResult;
     try {
@@ -149,7 +170,6 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
       actionResult = const ActionResult(actionsPerformed: [], durationMs: 0);
     }
 
-    // ─── TAMAMLANDI ───
     final completed = OrchestratorStateCompleted(
       collectedCount: collectionResult.newTransactionsCount,
       analyzedCount: analysisResult.analyzedCount,
@@ -159,12 +179,14 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
 
     _log(
       'orchestrator',
-      '─── Döngü tamamlandı ✓ (toplanan: ${completed.collectedCount}, analiz: ${completed.analyzedCount}, aksiyon: ${completed.actionsCount}) ───',
+      '─── Döngü tamamlandı ✓ (toplanan: ${completed.collectedCount}, '
+          'analiz: ${completed.analyzedCount}, aksiyon: ${completed.actionsCount}) ───',
       LogLevel.success,
     );
 
     await Future.delayed(
-        Duration(milliseconds: AppConstants.kAgentCompletedDelayMs));
+      Duration(milliseconds: AppConstants.kAgentCompletedDelayMs),
+    );
 
     if (mounted) {
       state = OrchestratorStateIdle(
@@ -176,18 +198,20 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
     }
   }
 
-  void startAutoMode() {
+  void startAutoMode({bool persist = true}) {
     _autoTimer?.cancel();
     _autoTimer = Timer.periodic(
       Duration(seconds: AppConstants.kAgentCycleIntervalSeconds),
       (_) => runOnce(),
     );
+    if (persist) _persistAutoMode(true);
     _log('orchestrator', 'Otomatik mod aktif', LogLevel.info);
   }
 
   void stopAutoMode() {
     _autoTimer?.cancel();
     _autoTimer = null;
+    _persistAutoMode(false);
     _log('orchestrator', 'Otomatik mod durduruldu', LogLevel.info);
   }
 
@@ -198,14 +222,15 @@ class Orchestrator extends StateNotifier<OrchestratorState> {
       (a) => a.shortName == agentStr,
       orElse: () => AgentType.orchestrator,
     );
-
-    _dbHelper.insertLog(AgentLogEntry(
-      id: _uuid.v4(),
-      agent: agentType,
-      message: message,
-      timestamp: DateTime.now(),
-      level: level,
-    ));
+    _dbHelper.insertLog(
+      AgentLogEntry(
+        id: _uuid.v4(),
+        agent: agentType,
+        message: message,
+        timestamp: DateTime.now(),
+        level: level,
+      ),
+    );
   }
 
   @override

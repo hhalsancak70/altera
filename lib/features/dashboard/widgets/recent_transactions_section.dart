@@ -66,21 +66,24 @@ class RecentTransactionsSection extends ConsumerWidget {
                   );
                 }
                 return Column(
-                  children: transactions
-                      .map((tx) => _TransactionRow(tx: tx))
-                      .toList(),
+                  children:
+                      transactions
+                          .map((tx) => _TransactionRow(tx: tx))
+                          .toList(),
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.accent,
-                ),
-              ),
-              error: (_, __) => const Text(
-                'İşlemler yüklenemedi',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
+              loading:
+                  () => const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
+              error:
+                  (_, __) => const Text(
+                    'İşlemler yüklenemedi',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
             ),
           ],
         ),

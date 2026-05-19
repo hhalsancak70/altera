@@ -1,41 +1,36 @@
 // Yerel bildirim yöneticisi - internet gerektirmez
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/transaction.dart';
 
 /// Yerel bildirim yöneticisi.
 /// flutter_local_notifications kullanır - internet gerektirmez.
-///
-/// Kullanım:
-/// ```dart
-/// await NotificationService.initialize();
-/// await NotificationService.instance.showBudgetWarning(
-///   category: TransactionCategory.restaurant,
-///   usagePercentage: 0.85,
-///   suggestion: 'Yarın evde yemek pişirmeyi dene',
-/// );
-/// ```
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
 
   final _plugin = FlutterLocalNotificationsPlugin();
 
-  // Bildirim kanal ID'leri
   static const _channelBudget = 'budget_alerts';
   static const _channelAgent = 'agent_actions';
   static const _channelInvestment = 'investment';
 
-  // Bildirim ID'leri - Android'de aynı ID güncelleme yapar
+  // Sabit bildirim ID aralıkları (çakışmadan kaçınmak için bloklar)
   static const _idBudgetWarning = 1000;
   static const _idBudgetDanger = 1001;
   static const _idInvestment = 2000;
   static const _idAgentSummary = 3000;
+  static const _idMonthlySummary = 4000;
+  // Portfolio uyarıları: 5000–5999 (sembol hash'inden türetilir)
+  static const _idPortfolioBase = 5000;
 
   /// Uygulamanın başında bir kez çağrılır
   static Future<void> initialize() async {
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -43,14 +38,23 @@ class NotificationService {
     );
 
     await instance._plugin.initialize(
-      const InitializationSettings(
-        android: androidSettings,
-        iOS: iosSettings,
-      ),
+      const InitializationSettings(android: androidSettings, iOS: iosSettings),
     );
 
-    // Android bildirim kanallarını oluştur
     await instance._createChannels();
+  }
+
+  /// Android 13+ (API 33+) için bildirim izni ister.
+  /// İzin yoksa sessizce devam eder — uygulama crash etmez.
+  static Future<void> requestPermissionIfNeeded() async {
+    try {
+      final status = await Permission.notification.status;
+      if (status.isDenied) {
+        await Permission.notification.request();
+      }
+    } catch (e) {
+      debugPrint('[NotificationService] İzin isteği başarısız: $e');
+    }
   }
 
   Future<void> _createChannels() async {
@@ -60,14 +64,12 @@ class NotificationService {
       description: 'Bütçe aşım ve uyarı bildirimleri',
       importance: Importance.high,
     );
-
     const agentChannel = AndroidNotificationChannel(
       _channelAgent,
       'Ajan Aksiyonları',
       description: 'ALTERA ajan aktivite bildirimleri',
       importance: Importance.defaultImportance,
     );
-
     const investmentChannel = AndroidNotificationChannel(
       _channelInvestment,
       'Yatırım Önerileri',
@@ -76,22 +78,35 @@ class NotificationService {
     );
 
     final androidPlugin =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-
+        _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
     await androidPlugin?.createNotificationChannel(budgetChannel);
     await androidPlugin?.createNotificationChannel(agentChannel);
     await androidPlugin?.createNotificationChannel(investmentChannel);
   }
 
-  /// Bütçe %80 aşıldığında uyarı gönderir
+  Future<void> _show(
+    int id,
+    String title,
+    String body,
+    NotificationDetails details,
+  ) async {
+    try {
+      await _plugin.show(id, title, body, details);
+    } catch (e) {
+      debugPrint('[NotificationService] Bildirim gönderilemedi: $e');
+    }
+  }
+
   Future<void> showBudgetWarning({
     required TransactionCategory category,
     required double usagePercentage,
     required String suggestion,
   }) async {
     final percent = (usagePercentage * 100).toStringAsFixed(0);
-    await _plugin.show(
+    await _show(
       _idBudgetWarning,
       '⚠️ ${category.displayNameTr} Bütçesi %$percent Doldu',
       suggestion,
@@ -104,15 +119,14 @@ class NotificationService {
     );
   }
 
-  /// Bütçe %100 aşıldığında kritik uyarı gönderir
   Future<void> showBudgetDanger({
     required TransactionCategory category,
     required double overspentAmount,
   }) async {
-    await _plugin.show(
+    await _show(
       _idBudgetDanger,
       '🚨 ${category.displayNameTr} Bütçesi Aşıldı!',
-      '${overspentAmount.toStringAsFixed(0)} TL fazla harcandı. Harcamalarını gözden geçir.',
+      '${overspentAmount.toStringAsFixed(0)} TL fazla harcandı.',
       _buildDetails(
         channelId: _channelBudget,
         channelName: 'Bütçe Uyarıları',
@@ -122,12 +136,11 @@ class NotificationService {
     );
   }
 
-  /// Otomatik yatırım gerçekleştiğinde bildirim gönderir
   Future<void> showInvestmentCompleted({
     required String fundName,
     required double amount,
   }) async {
-    await _plugin.show(
+    await _show(
       _idInvestment,
       '✅ Yatırım Tamamlandı',
       '${amount.toStringAsFixed(0)} TL $fundName fonuna aktarıldı.',
@@ -140,17 +153,22 @@ class NotificationService {
     );
   }
 
-  /// Portföyde önemli fiyat hareketi olduğunda bildirim gönderir
+  /// Portföyde önemli fiyat hareketi olduğunda bildirim gönderir.
+  /// Her sembol için benzersiz ID üretilir (çakışma yok).
   Future<void> showPortfolioAlert({
     required String assetName,
+    required String assetSymbol,
     required double changePct,
     required double deltaAmountTl,
   }) async {
+    // Sembol hash'inden [0, 999] aralığında deterministic ID
+    final notifId = _idPortfolioBase + (assetSymbol.hashCode.abs() % 1000);
     final isUp = changePct >= 0;
     final sign = isUp ? '+' : '';
     final arrow = isUp ? '▲' : '▼';
-    await _plugin.show(
-      _idInvestment + 1,
+
+    await _show(
+      notifId,
       '$arrow $assetName Önemli Hareket',
       '$sign${changePct.toStringAsFixed(2)}% ($sign${deltaAmountTl.toStringAsFixed(0)} TL) bugün',
       _buildDetails(
@@ -162,12 +180,11 @@ class NotificationService {
     );
   }
 
-  /// Ajan döngüsü tamamlandığında özet bildirim gönderir
   Future<void> showAgentCycleSummary({
     required int analyzedCount,
     required int actionsCount,
   }) async {
-    await _plugin.show(
+    await _show(
       _idAgentSummary,
       '🤖 ALTERA Ajan Döngüsü Tamamlandı',
       '$analyzedCount işlem analiz edildi, $actionsCount aksiyon alındı.',
@@ -180,27 +197,36 @@ class NotificationService {
     );
   }
 
-  /// Aylık döngü tamamlandığında özet bildirim gönderir
   Future<void> showMonthlySummary({
     required DateTime month,
     required double totalSavings,
     String? topCategory,
   }) async {
     const monthNames = [
-      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+      '',
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
     ];
     final monthName = monthNames[month.month];
-    final savingsText = totalSavings >= 0
-        ? '${totalSavings.toStringAsFixed(0)} TL tasarruf ettin!'
-        : '${totalSavings.abs().toStringAsFixed(0)} TL açık verin.';
+    final savingsText =
+        totalSavings >= 0
+            ? '${totalSavings.toStringAsFixed(0)} TL tasarruf ettin!'
+            : '${totalSavings.abs().toStringAsFixed(0)} TL açık verdin.';
+    final body =
+        topCategory != null ? '$savingsText En çok: $topCategory' : savingsText;
 
-    final body = topCategory != null
-        ? '$savingsText En çok: $topCategory'
-        : savingsText;
-
-    await _plugin.show(
-      4000,
+    await _show(
+      _idMonthlySummary,
       '$monthName ayı arşivlendi',
       body,
       _buildDetails(

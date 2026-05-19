@@ -70,7 +70,9 @@ class _LogEntryCardState extends State<LogEntryCard> {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: _agentBadgeColor.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(4),
@@ -79,8 +81,10 @@ class _LogEntryCardState extends State<LogEntryCard> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 if (widget.entry.isGeminiLog) ...[
-                                  const Text('✨',
-                                      style: TextStyle(fontSize: 10)),
+                                  const Text(
+                                    '✨',
+                                    style: TextStyle(fontSize: 10),
+                                  ),
                                   const SizedBox(width: 3),
                                 ],
                                 Text(
@@ -125,8 +129,8 @@ class _LogEntryCardState extends State<LogEntryCard> {
                       if (widget.entry.detail != null) ...[
                         const SizedBox(height: 6),
                         GestureDetector(
-                          onTap: () =>
-                              setState(() => _isExpanded = !_isExpanded),
+                          onTap:
+                              () => setState(() => _isExpanded = !_isExpanded),
                           child: Row(
                             children: [
                               Icon(

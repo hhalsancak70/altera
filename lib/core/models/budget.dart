@@ -79,7 +79,8 @@ class Budget {
   }
 
   /// Aşım miktarı - sadece danger durumunda anlamlı
-  double get overspentAmount => spentAmount > limitAmount ? spentAmount - limitAmount : 0.0;
+  double get overspentAmount =>
+      spentAmount > limitAmount ? spentAmount - limitAmount : 0.0;
 
   Budget copyWith({
     String? id,
@@ -98,20 +99,20 @@ class Budget {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'category': category.name,
-        'limitAmount': limitAmount,
-        'spentAmount': spentAmount,
-        'month': '${month.year}-${month.month.toString().padLeft(2, '0')}',
-      };
+    'id': id,
+    'category': category.name,
+    'limitAmount': limitAmount,
+    'spentAmount': spentAmount,
+    'month': '${month.year}-${month.month.toString().padLeft(2, '0')}',
+  };
 
   factory Budget.fromJson(Map<String, dynamic> json) => Budget(
-        id: json['id'] as String,
-        category: TransactionCategory.values.byName(json['category'] as String),
-        limitAmount: (json['limitAmount'] as num).toDouble(),
-        spentAmount: (json['spentAmount'] as num? ?? 0).toDouble(),
-        month: DateTime.parse('${json['month']}-01'),
-      );
+    id: json['id'] as String,
+    category: TransactionCategory.values.byName(json['category'] as String),
+    limitAmount: (json['limitAmount'] as num).toDouble(),
+    spentAmount: (json['spentAmount'] as num? ?? 0).toDouble(),
+    month: DateTime.parse('${json['month']}-01'),
+  );
 
   @override
   bool operator ==(Object other) =>

@@ -14,8 +14,19 @@ class MonthlySummaryCard extends ConsumerWidget {
     final summaryAsync = ref.watch(monthlySummaryProvider);
     final now = DateTime.now();
     final monthNames = [
-      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+      '',
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
     ];
 
     return Padding(
@@ -49,59 +60,63 @@ class MonthlySummaryCard extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             summaryAsync.when(
-              data: (summary) => Row(
-                children: [
-                  Expanded(
-                    child: _SummaryItem(
-                      label: 'Gelir',
-                      amount: summary.income,
-                      color: AppColors.success,
-                      icon: Icons.arrow_downward,
+              data:
+                  (summary) => Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryItem(
+                          label: 'Gelir',
+                          amount: summary.income,
+                          color: AppColors.success,
+                          icon: Icons.arrow_downward,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 48,
+                        color: const Color(0xFF1F2937),
+                      ),
+                      Expanded(
+                        child: _SummaryItem(
+                          label: 'Gider',
+                          amount: summary.expense,
+                          color: AppColors.danger,
+                          icon: Icons.arrow_upward,
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 48,
+                        color: const Color(0xFF1F2937),
+                      ),
+                      Expanded(
+                        child: _SummaryItem(
+                          label: 'Tasarruf',
+                          amount: summary.savings,
+                          color:
+                              summary.savings >= 0
+                                  ? AppColors.accent
+                                  : AppColors.danger,
+                          icon: Icons.savings_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+              loading:
+                  () => const Center(
+                    child: SizedBox(
+                      height: 48,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accent,
+                      ),
                     ),
                   ),
-                  Container(
-                    width: 1,
-                    height: 48,
-                    color: const Color(0xFF1F2937),
+              error:
+                  (_, __) => const Text(
+                    'Veri yüklenemedi',
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
-                  Expanded(
-                    child: _SummaryItem(
-                      label: 'Gider',
-                      amount: summary.expense,
-                      color: AppColors.danger,
-                      icon: Icons.arrow_upward,
-                    ),
-                  ),
-                  Container(
-                    width: 1,
-                    height: 48,
-                    color: const Color(0xFF1F2937),
-                  ),
-                  Expanded(
-                    child: _SummaryItem(
-                      label: 'Tasarruf',
-                      amount: summary.savings,
-                      color: summary.savings >= 0
-                          ? AppColors.accent
-                          : AppColors.danger,
-                      icon: Icons.savings_outlined,
-                    ),
-                  ),
-                ],
-              ),
-              loading: () => const Center(
-                child: SizedBox(
-                  height: 48,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.accent,
-                  ),
-                ),
-              ),
-              error: (_, __) => const Text(
-                'Veri yüklenemedi',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
             ),
           ],
         ),
@@ -148,10 +163,7 @@ class _SummaryItem extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 11,
-          ),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
         ),
       ],
     );

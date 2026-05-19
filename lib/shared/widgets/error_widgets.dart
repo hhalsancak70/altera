@@ -28,9 +28,11 @@ class FullScreenError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final message = appException?.userMessage ??
+    final message =
+        appException?.userMessage ??
         'Beklenmedik bir hata oluştu. Lütfen tekrar deneyin.';
-    final actionLabel = appException?.actionLabel ?? (onRetry != null ? 'Yeniden Dene' : null);
+    final actionLabel =
+        appException?.actionLabel ?? (onRetry != null ? 'Yeniden Dene' : null);
 
     return Center(
       child: Padding(
@@ -38,11 +40,7 @@ class FullScreenError extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.redAccent,
-            ),
+            const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
             const SizedBox(height: 20),
             Text(
               message,
@@ -93,20 +91,23 @@ class InlineError extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_outlined,
-              color: Colors.redAccent, size: 20),
+          const Icon(
+            Icons.warning_amber_outlined,
+            color: Colors.redAccent,
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+              ),
             ),
           ),
           if (onRetry != null)
-            TextButton(
-              onPressed: onRetry,
-              child: const Text('Tekrar'),
-            ),
+            TextButton(onPressed: onRetry, child: const Text('Tekrar')),
         ],
       ),
     );
@@ -157,10 +158,7 @@ class EmptyState extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            if (action != null) ...[
-              const SizedBox(height: 24),
-              action!,
-            ],
+            if (action != null) ...[const SizedBox(height: 24), action!],
           ],
         ),
       ),

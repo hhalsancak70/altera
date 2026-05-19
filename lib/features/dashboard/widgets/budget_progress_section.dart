@@ -50,24 +50,29 @@ class BudgetProgressSection extends ConsumerWidget {
                   );
                 }
                 return Column(
-                  children: budgets
-                      .map((b) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: BudgetProgressBar(budget: b),
-                          ))
-                      .toList(),
+                  children:
+                      budgets
+                          .map(
+                            (b) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: BudgetProgressBar(budget: b),
+                            ),
+                          )
+                          .toList(),
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.accent,
-                ),
-              ),
-              error: (_, __) => const Text(
-                'Bütçe verileri yüklenemedi',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
+              loading:
+                  () => const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
+              error:
+                  (_, __) => const Text(
+                    'Bütçe verileri yüklenemedi',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
             ),
           ],
         ),

@@ -17,13 +17,19 @@ class PrivacyFilter {
   ///   - 16 haneli kart numaraları
   ///   - Türk telefon numaraları
   ///   - 11 haneli TC Kimlik No
-  static String sanitizeDescription(String description) {
+  ///   - E-posta adresleri
+  ///   - Hesap numaraları (bağlam: "hesap no:", "account number", "acct" sonrası 6-20 rakam)
+  ///
+  /// [maxLength] varsayılan 100 — Gemini için yeterli. Fatura parse için 500 kullan.
+  static String sanitizeDescription(String description, {int maxLength = 100}) {
     String s = description;
 
     // IBAN maskele — TR + boşluklu/boşluksuz 24 rakam
     s = s.replaceAll(
-      RegExp(r'TR\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{2}',
-          caseSensitive: false),
+      RegExp(
+        r'TR\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{4}\s?\d{2}',
+        caseSensitive: false,
+      ),
       '[IBAN]',
     );
 
@@ -40,13 +46,25 @@ class PrivacyFilter {
     );
 
     // 11 haneli TC Kimlik No (1 ile başlar)
+    s = s.replaceAll(RegExp(r'\b[1-9]\d{10}\b'), '[TCKN]');
+
+    // E-posta adresleri
     s = s.replaceAll(
-      RegExp(r'\b[1-9]\d{10}\b'),
-      '[TCKN]',
+      RegExp(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b'),
+      '[EMAIL]',
     );
 
-    // Gemini kategorizasyon için 100 karakter yeterli
-    if (s.length > 100) s = s.substring(0, 100);
+    // Hesap numarası — bağlam anahtar kelimesi sonrası 6-20 rakam
+    // Örn: "hesap no: 1234567890", "account number 1234567890", "acct 123456"
+    s = s.replaceAllMapped(
+      RegExp(
+        r'(hesap\s*no[:\s]+|account\s*number[:\s]+|acct[:\s]+)(\d{6,20})',
+        caseSensitive: false,
+      ),
+      (m) => '${m.group(1)}[ACCOUNT_NO]',
+    );
+
+    if (s.length > maxLength) s = s.substring(0, maxLength);
 
     return s.trim();
   }

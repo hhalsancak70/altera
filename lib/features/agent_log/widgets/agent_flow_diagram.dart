@@ -46,32 +46,40 @@ class AgentFlowDiagram extends ConsumerWidget {
                   isCompleted: state is! OrchestratorStateIdle,
                 ),
                 _Arrow(
-                    isActive: state is OrchestratorStateCollecting ||
-                        state is OrchestratorStateAnalyzing ||
-                        state is OrchestratorStateActing ||
-                        state is OrchestratorStateCompleted),
+                  isActive:
+                      state is OrchestratorStateCollecting ||
+                      state is OrchestratorStateAnalyzing ||
+                      state is OrchestratorStateActing ||
+                      state is OrchestratorStateCompleted,
+                ),
                 _FlowStep(
                   label: 'Veri',
                   icon: Icons.cloud_download_outlined,
                   isActive: state is OrchestratorStateCollecting,
-                  isCompleted: state is OrchestratorStateAnalyzing ||
+                  isCompleted:
+                      state is OrchestratorStateAnalyzing ||
                       state is OrchestratorStateActing ||
                       state is OrchestratorStateCompleted,
                 ),
                 _Arrow(
-                    isActive: state is OrchestratorStateAnalyzing ||
-                        state is OrchestratorStateActing ||
-                        state is OrchestratorStateCompleted),
+                  isActive:
+                      state is OrchestratorStateAnalyzing ||
+                      state is OrchestratorStateActing ||
+                      state is OrchestratorStateCompleted,
+                ),
                 _FlowStep(
                   label: 'Gemini',
                   icon: Icons.auto_awesome,
                   isActive: state is OrchestratorStateAnalyzing,
-                  isCompleted: state is OrchestratorStateActing ||
+                  isCompleted:
+                      state is OrchestratorStateActing ||
                       state is OrchestratorStateCompleted,
                 ),
                 _Arrow(
-                    isActive: state is OrchestratorStateActing ||
-                        state is OrchestratorStateCompleted),
+                  isActive:
+                      state is OrchestratorStateActing ||
+                      state is OrchestratorStateCompleted,
+                ),
                 _FlowStep(
                   label: 'Aksiyon',
                   icon: Icons.flash_on,
@@ -138,9 +146,10 @@ class _FlowStep extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: isActive
-                  ? AppColors.accent
-                  : isCompleted
+              color:
+                  isActive
+                      ? AppColors.accent
+                      : isCompleted
                       ? AppColors.success
                       : AppColors.textSecondary,
               fontSize: 10,

@@ -13,23 +13,31 @@ class RepositoryException implements Exception {
   String toString() => 'RepositoryException: $message';
 }
 
+/// Toplu import sonucu
+class BulkImportResult {
+  final int added;
+  final int skipped;
+  final int errors;
+
+  const BulkImportResult({
+    required this.added,
+    required this.skipped,
+    required this.errors,
+  });
+
+  int get total => added + skipped + errors;
+}
+
 /// İşlem verisi için tek yetkili veri katmanı.
-///
-/// UI direkt DbHelper'a erişmez — her zaman bu repository kullanılır.
-/// Tüm iş kuralları (validasyon, ID üretimi, flag yönetimi) burada.
 class TransactionRepository {
   final DbHelper _db;
   final _uuid = const Uuid();
 
   TransactionRepository({required DbHelper db}) : _db = db;
 
-  /// Yeni işlem ekler ve Gemini analizi için kuyruğa alır.
-  ///
-  /// [transaction] Kullanıcının girdiği ham işlem (id boş olabilir)
-  /// Returns: Eklenen işlemin ID'si
+  /// Yeni işlem ekler.
   Future<String> addTransaction(Transaction transaction) async {
     try {
-      // ID yoksa UUID v4 üret
       final id = transaction.id.isEmpty ? _uuid.v4() : transaction.id;
       final now = DateTime.now();
 
@@ -46,7 +54,7 @@ class TransactionRepository {
         createdAt: now,
       );
 
-      await _db.insertTransaction(txToSave);
+      await _db.insertTransaction(txToSave); // dönüş bool; manuel eklemede duplicate nadirdir
       return id;
     } catch (e) {
       throw RepositoryException('İşlem eklenemedi: $e');
@@ -55,17 +63,25 @@ class TransactionRepository {
 
   /// İşlemi günceller.
   ///
-  /// Kullanıcı kategoriyi değiştirdiyse AI analizi tekrar tetiklenir.
-  Future<void> updateTransaction(Transaction updated) async {
+  /// [isManualEdit] true ise kullanıcı kategoriyi elle değiştirmiş demektir;
+  /// bu durumda AI yeniden analiz tetiklenmez ve isAnalyzed=true kalır.
+  Future<void> updateTransaction(
+    Transaction updated, {
+    bool isManualEdit = false,
+  }) async {
     try {
       final existing = await _db.getTransactionById(updated.id);
       if (existing == null) {
         throw RepositoryException('İşlem bulunamadı: ${updated.id}');
       }
 
-      // Kategori değiştiyse yeniden analiz için işaretle
-      final needsReanalysis = updated.category != existing.category &&
-          updated.source != 'import'; // import'ta kategori kullanıcı seçimi
+      // Manuel düzenleme → AI override yok
+      // Programatik güncelleme ve kategori değiştiyse → yeniden analiz
+      final needsReanalysis =
+          !isManualEdit &&
+          updated.category != existing.category &&
+          updated.description == existing.description &&
+          updated.amount == existing.amount;
 
       final toSave = Transaction(
         id: updated.id,
@@ -74,8 +90,14 @@ class TransactionRepository {
         date: updated.date,
         category: updated.category,
         type: updated.type,
-        aiReason: needsReanalysis ? null : updated.aiReason,
-        isAnalyzed: needsReanalysis ? false : updated.isAnalyzed,
+        aiReason:
+            isManualEdit
+                ? existing.aiReason
+                : (needsReanalysis ? null : updated.aiReason),
+        isAnalyzed:
+            isManualEdit
+                ? true
+                : (needsReanalysis ? false : updated.isAnalyzed),
         source: updated.source,
         createdAt: existing.createdAt,
       );
@@ -87,7 +109,7 @@ class TransactionRepository {
     }
   }
 
-  /// İşlemi kalıcı olarak siler — geri alınamaz.
+  /// İşlemi kalıcı olarak siler.
   Future<void> deleteTransaction(String id) async {
     try {
       final exists = await _db.getTransactionById(id);
@@ -133,20 +155,38 @@ class TransactionRepository {
     return getAll(fromDate: DateTime(now.year, now.month, 1));
   }
 
-  /// Toplu işlem ekler (PDF/Excel import için)
-  ///
-  /// [transactions] Import edilen işlemler listesi
-  /// Returns: Başarıyla eklenen işlem sayısı
-  Future<int> addBulk(List<Transaction> transactions) async {
-    var addedCount = 0;
+  /// Toplu işlem ekler, duplicate olanları atlar.
+  /// Fingerprint: DbHelper.buildFingerprint kullanır (DB ile birebir aynı format).
+  Future<BulkImportResult> addBulk(List<Transaction> transactions) async {
+    int added = 0;
+    int skipped = 0;
+    int errors = 0;
+
     for (final tx in transactions) {
       try {
-        await addTransaction(tx);
-        addedCount++;
+        final fingerprint = DbHelper.buildFingerprint(
+          tx.date,
+          tx.amount,
+          tx.description,
+          tx.type,
+        );
+        final isDuplicate = await _db.transactionFingerprintExists(fingerprint);
+        if (isDuplicate) {
+          skipped++;
+          continue;
+        }
+        // insertTransaction da fingerprint'i DB'ye yazar; çift kontrol duplicate'i garantiler
+        final inserted = await _db.insertTransaction(tx);
+        if (inserted) {
+          added++;
+        } else {
+          skipped++;
+        }
       } catch (_) {
-        // Tekil hata toplam import'u durdurmaz
+        errors++;
       }
     }
-    return addedCount;
+
+    return BulkImportResult(added: added, skipped: skipped, errors: errors);
   }
 }

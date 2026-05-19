@@ -1,36 +1,54 @@
-// Finansal belge içe aktarma servisi — PDF ve Excel
+// Finansal belge içe aktarma servisi — Excel
 import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/transaction.dart';
+import '../utils/money_parser.dart';
 
 /// Desteklenen banka formatları
-enum BankFormat {
-  ziraat,
-  garanti,
-  isBank,
-  akbank,
-  yapiKredi,
-  generic,
+enum BankFormat { ziraat, garanti, isBank, akbank, yapiKredi, generic }
+
+/// Import satır ayrıştırma sonucu
+sealed class _RowResult {}
+
+class _RowParsed extends _RowResult {
+  final Transaction tx;
+  _RowParsed(this.tx);
+}
+
+class _RowEmpty extends _RowResult {}
+
+class _RowInvalid extends _RowResult {
+  final String reason;
+  _RowInvalid(this.reason);
 }
 
 /// Import işlemi sonucu
 class ImportResult {
   final List<Transaction> transactions;
   final BankFormat bankFormat;
-  final int totalFound;
+  final int totalRowsRead;
   final int successfullyParsed;
+  final int parseErrors;
+  final int duplicatesSkipped;
+  final int emptyRowsSkipped;
   final List<String> warnings;
 
   const ImportResult({
     required this.transactions,
     required this.bankFormat,
-    required this.totalFound,
+    required this.totalRowsRead,
     required this.successfullyParsed,
+    this.parseErrors = 0,
+    this.duplicatesSkipped = 0,
+    this.emptyRowsSkipped = 0,
     this.warnings = const [],
   });
+
+  @Deprecated('Use totalRowsRead instead')
+  int get totalFound => totalRowsRead;
 }
 
 /// Import hatası — kullanıcıya gösterilebilir mesaj içerir
@@ -82,12 +100,15 @@ class ImportService {
 
     final rawTransactions = <Transaction>[];
     final warnings = <String>[];
+    var totalParseErrors = 0;
+    var totalEmptyRows = 0;
+    var totalRowsRead = 0;
 
     for (final sheetName in excel.tables.keys) {
       final sheet = excel.tables[sheetName]!;
       if (sheet.maxRows < 2) continue;
 
-      // Başlık satırını bul (Tarih + Tutar sütunu olan satır)
+      // Başlık satırını bul
       final headerRow = _findHeaderRow(sheet);
       if (headerRow == -1) {
         warnings.add('$sheetName sayfasında uygun başlık bulunamadı');
@@ -95,19 +116,32 @@ class ImportService {
       }
 
       final columnMap = _mapColumns(sheet.row(headerRow));
-      if (!columnMap.containsKey('date') || !columnMap.containsKey('amount')) {
-        warnings.add('$sheetName: Tarih veya Tutar sütunu bulunamadı');
+      final hasAmountCol =
+          columnMap.containsKey('amount') ||
+          columnMap.containsKey('debit') ||
+          columnMap.containsKey('credit');
+      if (!columnMap.containsKey('date') || !hasAmountCol) {
+        warnings.add(
+          '$sheetName: Tarih veya Tutar/Borç/Alacak sütunu bulunamadı',
+        );
         continue;
       }
 
       onProgress(0.3, 'İşlemler okunuyor...');
 
+      int sheetParseErrors = 0;
+      int sheetEmptyRows = 0;
+
       for (int row = headerRow + 1; row < sheet.maxRows; row++) {
-        try {
-          final tx = _parseExcelRow(sheet.row(row), columnMap: columnMap);
-          if (tx != null) rawTransactions.add(tx);
-        } catch (_) {
-          // Satır parse hatası — atla, devam et
+        totalRowsRead++;
+        final result = _parseExcelRow(sheet.row(row), columnMap: columnMap);
+
+        if (result is _RowParsed) {
+          rawTransactions.add(result.tx);
+        } else if (result is _RowEmpty) {
+          sheetEmptyRows++;
+        } else if (result is _RowInvalid) {
+          sheetParseErrors++;
         }
 
         if (row % 10 == 0) {
@@ -117,6 +151,14 @@ class ImportService {
           );
         }
       }
+
+      totalParseErrors += sheetParseErrors;
+      totalEmptyRows += sheetEmptyRows;
+
+      if (sheetParseErrors > 0) {
+        warnings.add('$sheetParseErrors satır parse edilemedi ve atlandı');
+      }
+
       break; // İlk geçerli sayfayı işledik
     }
 
@@ -131,13 +173,15 @@ class ImportService {
     return ImportResult(
       transactions: rawTransactions,
       bankFormat: BankFormat.generic,
-      totalFound: rawTransactions.length,
+      totalRowsRead: totalRowsRead,
       successfullyParsed: rawTransactions.length,
+      parseErrors: totalParseErrors,
+      emptyRowsSkipped: totalEmptyRows,
       warnings: warnings,
     );
   }
 
-  /// Başlık satırını bulur (Tarih + Tutar sütunlarını içeren satır)
+  /// Başlık satırını bulur (Tarih + Tutar/Borç/Alacak sütunlarını içeren satır)
   int _findHeaderRow(Sheet sheet) {
     for (int i = 0; i < sheet.maxRows && i < 10; i++) {
       final row = sheet.row(i);
@@ -145,14 +189,19 @@ class ImportService {
           .map((c) => c?.value?.toString().toLowerCase() ?? '')
           .join(' ');
 
-      // Tarih ve tutar kelimelerinden birini içeriyorsa başlık satırı
-      if ((rowText.contains('tarih') || rowText.contains('date')) &&
-          (rowText.contains('tutar') ||
-              rowText.contains('amount') ||
-              rowText.contains('borç') ||
-              rowText.contains('alacak'))) {
-        return i;
-      }
+      final hasDate =
+          rowText.contains('tarih') || rowText.contains('date');
+      final hasAmount =
+          rowText.contains('tutar') ||
+          rowText.contains('amount') ||
+          rowText.contains('borç') ||
+          rowText.contains('alacak') ||
+          rowText.contains('debit') ||
+          rowText.contains('credit') ||
+          rowText.contains('withdrawal') ||
+          rowText.contains('deposit');
+
+      if (hasDate && hasAmount) return i;
     }
     return -1;
   }
@@ -170,29 +219,39 @@ class ImportService {
         map['description'] = i;
       } else if (cell.contains('tutar') || cell.contains('amount')) {
         map['amount'] = i;
-      } else if (cell.contains('borç') || cell.contains('debit')) {
+      } else if (cell.contains('borç') ||
+          cell.contains('debit') ||
+          cell.contains('withdrawal')) {
         map['debit'] = i;
-      } else if (cell.contains('alacak') || cell.contains('credit')) {
+      } else if (cell.contains('alacak') ||
+          cell.contains('credit') ||
+          cell.contains('deposit')) {
         map['credit'] = i;
       }
     }
     return map;
   }
 
-  /// Excel satırını Transaction'a dönüştürür
-  Transaction? _parseExcelRow(
+  /// Excel satırını ayrıştırma sonucuna dönüştürür
+  _RowResult _parseExcelRow(
     List<Data?> row, {
     required Map<String, int> columnMap,
   }) {
-    if (row.isEmpty) return null;
+    // Tamamen boş satırı atla
+    if (row.isEmpty || row.every((c) => c?.value == null)) return _RowEmpty();
 
     // Tarih parse
     DateTime? date;
     if (columnMap.containsKey('date')) {
       final dateCell = row[columnMap['date']!]?.value;
-      date = _parseDate(dateCell?.toString() ?? '');
+      if (dateCell == null) return _RowInvalid('Tarih boş');
+      date = _parseDate(dateCell.toString());
+      if (date == null) {
+        return _RowInvalid('Geçersiz tarih: ${dateCell.toString()}');
+      }
+    } else {
+      return _RowInvalid('Tarih sütunu bulunamadı');
     }
-    if (date == null) return null;
 
     // Açıklama
     String description = 'İşlem';
@@ -202,34 +261,63 @@ class ImportService {
     }
     if (description.isEmpty) description = 'İşlem';
 
-    // Tutar
-    double amount = 0;
+    // Tutar — bozuk tutar sessizce 0 yapılmaz, parse error döner
+    double? amount;
     if (columnMap.containsKey('amount')) {
-      amount = _parseAmount(row[columnMap['amount']!]?.value?.toString() ?? '');
-    } else if (columnMap.containsKey('debit') || columnMap.containsKey('credit')) {
-      final debit = columnMap.containsKey('debit')
-          ? _parseAmount(row[columnMap['debit']!]?.value?.toString() ?? '')
-          : 0.0;
-      final credit = columnMap.containsKey('credit')
-          ? _parseAmount(row[columnMap['credit']!]?.value?.toString() ?? '')
-          : 0.0;
+      final raw = row[columnMap['amount']!]?.value?.toString() ?? '';
+      if (raw.trim().isEmpty) return _RowInvalid('Tutar boş');
+      amount = parseMoneyAmount(raw);
+      if (amount == null) return _RowInvalid('Geçersiz tutar: $raw');
+    } else if (columnMap.containsKey('debit') ||
+        columnMap.containsKey('credit')) {
+      final debitRaw =
+          columnMap.containsKey('debit')
+              ? row[columnMap['debit']!]?.value?.toString() ?? ''
+              : '';
+      final creditRaw =
+          columnMap.containsKey('credit')
+              ? row[columnMap['credit']!]?.value?.toString() ?? ''
+              : '';
+
+      final debit =
+          debitRaw.trim().isEmpty ? null : parseMoneyAmount(debitRaw);
+      final credit =
+          creditRaw.trim().isEmpty ? null : parseMoneyAmount(creditRaw);
+
+      if (debit == null && credit == null) {
+        // Her iki sütun da boşsa boş satır
+        if (debitRaw.trim().isEmpty && creditRaw.trim().isEmpty) {
+          return _RowEmpty();
+        }
+        return _RowInvalid('Geçersiz borç/alacak: $debitRaw / $creditRaw');
+      }
+
       // Borç negatif, alacak pozitif
-      amount = credit > 0 ? credit : -debit;
+      if (credit != null && credit > 0) {
+        amount = credit;
+      } else if (debit != null && debit > 0) {
+        amount = -debit;
+      } else {
+        amount = (credit ?? 0) - (debit ?? 0);
+      }
     }
 
-    if (amount == 0) return null;
+    if (amount == null) return _RowInvalid('Tutar belirlenemedi');
+    if (amount == 0) return _RowInvalid('Sıfır tutarlı işlem atlandı');
 
-    return Transaction(
-      id: _uuid.v4(),
-      description: description,
-      amount: amount,
-      date: date,
-      category: TransactionCategory.other,
-      type: amount > 0 ? TransactionType.income : TransactionType.need,
-      aiReason: null,
-      isAnalyzed: false, // Gemini analizi bekliyor
-      source: 'import',
-      createdAt: DateTime.now(),
+    return _RowParsed(
+      Transaction(
+        id: _uuid.v4(),
+        description: description,
+        amount: amount,
+        date: date,
+        category: TransactionCategory.other,
+        type: amount > 0 ? TransactionType.income : TransactionType.need,
+        aiReason: null,
+        isAnalyzed: false,
+        source: 'import',
+        createdAt: DateTime.now(),
+      ),
     );
   }
 
@@ -240,9 +328,7 @@ class ImportService {
     // Excel sayısal tarih (1900'dan gün sayısı)
     final numericValue = double.tryParse(raw);
     if (numericValue != null && numericValue > 40000) {
-      // Excel epoch başlangıcı: 30 Aralık 1899
-      return DateTime(1899, 12, 30)
-          .add(Duration(days: numericValue.toInt()));
+      return DateTime(1899, 12, 30).add(Duration(days: numericValue.toInt()));
     }
 
     // Türkçe/uluslararası format denemeleri
@@ -262,25 +348,5 @@ class ImportService {
       }
     }
     return null;
-  }
-
-  /// Türk para formatını double'a çevirir
-  double _parseAmount(String raw) {
-    if (raw.isEmpty) return 0;
-    // "1.234,56" → 1234.56
-    String cleaned = raw
-        .replaceAll(' ', '')
-        .replaceAll('₺', '')
-        .replaceAll('TL', '')
-        .trim();
-
-    // Türk formatı: nokta binlik ayraç, virgül ondalık
-    if (cleaned.contains(',') && cleaned.contains('.')) {
-      cleaned = cleaned.replaceAll('.', '').replaceAll(',', '.');
-    } else if (cleaned.contains(',') && !cleaned.contains('.')) {
-      cleaned = cleaned.replaceAll(',', '.');
-    }
-
-    return double.tryParse(cleaned) ?? 0;
   }
 }

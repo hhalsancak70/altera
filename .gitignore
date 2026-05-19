@@ -43,3 +43,51 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android release signing — never commit these
+android/key.properties
+android/*.jks
+android/*.keystore
+**/*.jks
+**/*.keystore
+
+# Android local machine-specific files
+android/local.properties
+android/app/.cxx/
+
+# Environment / secret config files
+.env
+.env.local
+.env.*
+*.env
+
+# macOS archive artifacts
+__MACOSX/
+**/.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Android generated/build files
+android/.gradle/
+android/app/.cxx/
+android/local.properties
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# iOS generated/ephemeral files
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
+ios/android/
+
+# Build outputs
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# IDE
+.idea/
+**/.DS_Store
+__MACOSX/

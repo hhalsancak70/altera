@@ -13,14 +13,14 @@ class TransferResult {
   final String? errorMessage;
 
   const TransferResult.success({required String transactionId})
-      : success = true,
-        transactionId = transactionId,
-        errorMessage = null;
+    : success = true,
+      transactionId = transactionId,
+      errorMessage = null;
 
   const TransferResult.failure({required String errorMessage})
-      : success = false,
-        transactionId = null,
-        errorMessage = errorMessage;
+    : success = false,
+      transactionId = null,
+      errorMessage = errorMessage;
 }
 
 /// Yatırım fonu verileri ve simüle transfer servisi.
@@ -37,14 +37,16 @@ class InvestmentFundService {
   Future<List<InvestmentFund>> fetchInvestmentFunds() async {
     if (_cachedFunds != null) return _cachedFunds!;
 
-    final jsonStr =
-        await rootBundle.loadString('assets/data/investment_funds.json');
+    final jsonStr = await rootBundle.loadString(
+      'assets/data/investment_funds.json',
+    );
     final list = jsonDecode(jsonStr) as List<dynamic>;
 
-    _cachedFunds = list.map((json) {
-      final map = json as Map<String, dynamic>;
-      return InvestmentFund.fromJson(map);
-    }).toList();
+    _cachedFunds =
+        list.map((json) {
+          final map = json as Map<String, dynamic>;
+          return InvestmentFund.fromJson(map);
+        }).toList();
 
     return _cachedFunds!;
   }
@@ -62,9 +64,7 @@ class InvestmentFundService {
     required String reason,
   }) async {
     // Ağ gecikmesini simüle et (300-800ms arası)
-    await Future.delayed(
-      Duration(milliseconds: 300 + _random.nextInt(500)),
-    );
+    await Future.delayed(Duration(milliseconds: 300 + _random.nextInt(500)));
 
     // %95 başarı oranı — gerçek API'yi simüle eder
     if (_random.nextDouble() < 0.95) {

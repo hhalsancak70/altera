@@ -4,81 +4,88 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/models/asset.dart';
 import '../../core/providers.dart';
 import '../../core/services/yahoo_finance_service.dart';
 import '../../core/services/gemini_service.dart';
+import '../../core/utils/money_parser.dart';
 
 // ─── Sabit varlık kataloğu ────────────────────────────────────────────────────
 const _kCatalog = [
-  {'name': 'Altın (Gram)',    'symbol': 'GC=F',     'prefix': '₺', 'colorHex': 0xFFF59E0B},
-  {'name': 'Döviz (USD/TRY)', 'symbol': 'TRY=X',    'prefix': '₺', 'colorHex': 0xFF22C55E},
-  {'name': 'Bitcoin',         'symbol': 'BTC-USD',  'prefix': '\$', 'colorHex': 0xFFEF4444},
-  {'name': 'Ethereum',        'symbol': 'ETH-USD',  'prefix': '\$', 'colorHex': 0xFF8B5CF6},
-  {'name': 'Borsa İstanbul',  'symbol': 'XU100.IS', 'prefix': '₺', 'colorHex': 0xFF3B82F6},
-  {'name': 'S&P 500 ETF',     'symbol': 'SPY',      'prefix': '\$', 'colorHex': 0xFF06B6D4},
-  {'name': 'Gümüş (Gram)',    'symbol': 'SI=F',     'prefix': '₺', 'colorHex': 0xFF94A3B8},
-  {'name': 'Euro/TRY',        'symbol': 'EURTRY=X', 'prefix': '₺', 'colorHex': 0xFFF97316},
+  {
+    'name': 'Altın (Gram)',
+    'symbol': 'GC=F',
+    'prefix': '₺',
+    'colorHex': 0xFFF59E0B,
+  },
+  {
+    'name': 'Döviz (USD/TRY)',
+    'symbol': 'TRY=X',
+    'prefix': '₺',
+    'colorHex': 0xFF22C55E,
+  },
+  {
+    'name': 'Bitcoin',
+    'symbol': 'BTC-USD',
+    'prefix': '\$',
+    'colorHex': 0xFFEF4444,
+  },
+  {
+    'name': 'Ethereum',
+    'symbol': 'ETH-USD',
+    'prefix': '\$',
+    'colorHex': 0xFF8B5CF6,
+  },
+  {
+    'name': 'Borsa İstanbul',
+    'symbol': 'XU100.IS',
+    'prefix': '₺',
+    'colorHex': 0xFF3B82F6,
+  },
+  {
+    'name': 'S&P 500 ETF',
+    'symbol': 'SPY',
+    'prefix': '\$',
+    'colorHex': 0xFF06B6D4,
+  },
+  {
+    'name': 'Gümüş (Gram)',
+    'symbol': 'SI=F',
+    'prefix': '₺',
+    'colorHex': 0xFF94A3B8,
+  },
+  {
+    'name': 'Euro/TRY',
+    'symbol': 'EURTRY=X',
+    'prefix': '₺',
+    'colorHex': 0xFFF97316,
+  },
 ];
 
 const _kBist = [
-  {'name': 'Şişe Cam',        'symbol': 'SISE.IS',  'ticker': 'SISE'},
+  {'name': 'Şişe Cam', 'symbol': 'SISE.IS', 'ticker': 'SISE'},
   {'name': 'Garanti Bankası', 'symbol': 'GARAN.IS', 'ticker': 'GARAN'},
-  {'name': 'Akbank',          'symbol': 'AKBNK.IS', 'ticker': 'AKBNK'},
-  {'name': 'Türk Telekom',    'symbol': 'TTKOM.IS', 'ticker': 'TTKOM'},
-  {'name': 'Ereğli Demir',    'symbol': 'EREGL.IS', 'ticker': 'EREGL'},
+  {'name': 'Akbank', 'symbol': 'AKBNK.IS', 'ticker': 'AKBNK'},
+  {'name': 'Türk Telekom', 'symbol': 'TTKOM.IS', 'ticker': 'TTKOM'},
+  {'name': 'Ereğli Demir', 'symbol': 'EREGL.IS', 'ticker': 'EREGL'},
   {'name': 'Sabancı Holding', 'symbol': 'SAHOL.IS', 'ticker': 'SAHOL'},
-  {'name': 'Koç Holding',     'symbol': 'KCHOL.IS', 'ticker': 'KCHOL'},
-  {'name': 'BİM',             'symbol': 'BIMAS.IS', 'ticker': 'BIMAS'},
-  {'name': 'Arçelik',         'symbol': 'ARCLK.IS', 'ticker': 'ARCLK'},
-  {'name': 'THY',             'symbol': 'THYAO.IS', 'ticker': 'THYAO'},
-  {'name': 'Yapı Kredi',      'symbol': 'YKBNK.IS', 'ticker': 'YKBNK'},
-  {'name': 'İş Bankası',      'symbol': 'ISCTR.IS', 'ticker': 'ISCTR'},
-  {'name': 'Ford Otosan',     'symbol': 'FROTO.IS', 'ticker': 'FROTO'},
-  {'name': 'Togg',            'symbol': 'TOGG.IS',  'ticker': 'TOGG'},
-  {'name': 'Aselsan',         'symbol': 'ASELS.IS', 'ticker': 'ASELS'},
-  {'name': 'Enka İnşaat',     'symbol': 'ENKAI.IS', 'ticker': 'ENKAI'},
-  {'name': 'Migros',          'symbol': 'MGROS.IS', 'ticker': 'MGROS'},
+  {'name': 'Koç Holding', 'symbol': 'KCHOL.IS', 'ticker': 'KCHOL'},
+  {'name': 'BİM', 'symbol': 'BIMAS.IS', 'ticker': 'BIMAS'},
+  {'name': 'Arçelik', 'symbol': 'ARCLK.IS', 'ticker': 'ARCLK'},
+  {'name': 'THY', 'symbol': 'THYAO.IS', 'ticker': 'THYAO'},
+  {'name': 'Yapı Kredi', 'symbol': 'YKBNK.IS', 'ticker': 'YKBNK'},
+  {'name': 'İş Bankası', 'symbol': 'ISCTR.IS', 'ticker': 'ISCTR'},
+  {'name': 'Ford Otosan', 'symbol': 'FROTO.IS', 'ticker': 'FROTO'},
+  {'name': 'Togg', 'symbol': 'TOGG.IS', 'ticker': 'TOGG'},
+  {'name': 'Aselsan', 'symbol': 'ASELS.IS', 'ticker': 'ASELS'},
+  {'name': 'Enka İnşaat', 'symbol': 'ENKAI.IS', 'ticker': 'ENKAI'},
+  {'name': 'Migros', 'symbol': 'MGROS.IS', 'ticker': 'MGROS'},
 ];
 
-// ─── Asset Modeli ─────────────────────────────────────────────────────────────
-class Asset {
-  final String name;
-  final String symbol;
-  final String prefix;
-  final Color color;
-  final double units;
-  final double totalCost;
-
-  const Asset({
-    required this.name,
-    required this.symbol,
-    required this.prefix,
-    required this.color,
-    required this.units,
-    required this.totalCost,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'symbol': symbol,
-    'prefix': prefix,
-    'colorHex': color.value,
-    'units': units,
-    'totalCost': totalCost,
-  };
-
-  factory Asset.fromJson(Map<String, dynamic> json) => Asset(
-    name: json['name'],
-    symbol: json['symbol'],
-    prefix: json['prefix'],
-    color: Color(json['colorHex']),
-    units: json['units'],
-    totalCost: json['totalCost'],
-  );
-}
-
 // ─── Providers ─────────────────────────────────────────────────────────────────
-final assetsProvider = StateNotifierProvider<AssetsNotifier, List<Asset>>((ref) => AssetsNotifier());
+final assetsProvider = StateNotifierProvider<AssetsNotifier, List<Asset>>(
+  (ref) => AssetsNotifier(),
+);
 
 class AssetsNotifier extends StateNotifier<List<Asset>> {
   AssetsNotifier() : super(const []) {
@@ -115,20 +122,19 @@ final isUsdProvider = StateProvider<bool>((ref) => false);
 final isLineChartProvider = StateProvider<bool>((ref) => false);
 
 // 🌟 YENİ: Portföyü analiz eden Gemini Ajanı Sağlayıcısı
-final portfolioAnalysisProvider = FutureProvider.family<String, List<Asset>>((ref, assets) async {
+final portfolioAnalysisProvider = FutureProvider.family<String, List<Asset>>((
+  ref,
+  assets,
+) async {
   if (assets.isEmpty) {
     return 'Portföyünüz şu an boş. Hemen bir varlık ekleyerek enflasyona karşı korunmaya başlayın!';
   }
   try {
-    // Güvenli hafızadan API Key okuyarak servisi ayağa kaldırır
-    final geminiService = GeminiService.withKey('AIzaSyBUL_FXAy-Wrv2wvB7zYqLzg6WhiP20pYg');
+    final geminiService = await GeminiService.initialize();
     return await geminiService.analyzePortfolio(assets);
-  } catch (e) {
-    // 💡 HACKATHON SUNUM KOLAYLIĞI: Eğer SecureStorage simülatörde hata verirse,
-    // doğrudan aşağıdaki satırı yorumdan çıkarıp kendi API anahtarınızı yazarak test edebilirsiniz:
-    // final geminiService = GeminiService.withKey('BURAYA_API_KEYINIZI_YAZIN');
-    // return await geminiService.analyzePortfolio(assets);
-
+  } on GeminiException catch (e) {
+    return 'ALTERA Ajanı şu an portföyü analiz edemiyor: ${e.message}';
+  } catch (_) {
     return 'ALTERA Ajanı şu an portföyü analiz edemiyor. Lütfen ayarlardan Gemini API Key tanımlamasını kontrol edin.';
   }
 });
@@ -140,10 +146,15 @@ class LivePriceParams {
   LivePriceParams({required this.livePriceTl, required this.displayPrefix});
 }
 
-LivePriceParams _getLiveTlPrice(Map<String, dynamic>? rawData, String symbol, double usdRate) {
-  if (rawData == null) return LivePriceParams(livePriceTl: 0, displayPrefix: '');
+LivePriceParams _getLiveTlPrice(
+  Map<String, dynamic>? rawData,
+  String symbol,
+  double usdRate,
+) {
+  if (rawData == null)
+    return LivePriceParams(livePriceTl: 0, displayPrefix: '');
 
-  double p = rawData['price'];
+  final p = (rawData['price'] as num?)?.toDouble() ?? 0.0;
   double priceTl = p;
 
   if (symbol == 'GC=F' || symbol == 'SI=F') {
@@ -159,7 +170,9 @@ LivePriceParams _getLiveTlPrice(Map<String, dynamic>? rawData, String symbol, do
 
 String _formatCurrency(double amountInTl, bool isUsd, double usdRate) {
   final val = isUsd ? (amountInTl / usdRate) : amountInTl;
-  final formatted = val.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.');
+  final formatted = val
+      .toStringAsFixed(0)
+      .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.');
   return isUsd ? '\$$formatted' : '$formatted TL';
 }
 
@@ -181,11 +194,11 @@ class InvestmentsScreen extends ConsumerWidget {
     final summaryAsync = ref.watch(monthlySummaryProvider);
 
     final tryData = ref.watch(yahooFinanceProvider('TRY=X'));
-    final usdRate = tryData.valueOrNull?['price'] as double? ?? 1.0;
+    final usdRate = (tryData.valueOrNull?['price'] as num?)?.toDouble() ?? 1.0;
 
     final savings = summaryAsync.valueOrNull?.savings ?? 0.0;
     final totalInvested = assets.fold(0.0, (sum, a) => sum + a.totalCost);
-    final available = (savings - totalInvested).clamp(0.0, double.infinity);
+    final available = (savings - totalInvested).clamp(0.0, double.infinity).toDouble();
 
     return Scaffold(
       body: Container(
@@ -206,16 +219,28 @@ class InvestmentsScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       const SizedBox(height: 10),
-                      _ChartSection(assets: assets, isUsd: isUsd, usdRate: usdRate),
+                      _ChartSection(
+                        assets: assets,
+                        isUsd: isUsd,
+                        usdRate: usdRate,
+                      ),
                       const SizedBox(height: 24),
-                      _PortfolioTotal(assets: assets, isUsd: isUsd, usdRate: usdRate),
+                      _PortfolioTotal(
+                        assets: assets,
+                        isUsd: isUsd,
+                        usdRate: usdRate,
+                      ),
                       const SizedBox(height: 24),
                       const _SavingsCard(),
                       const SizedBox(height: 24),
                       _AiAgentCard(assets: assets),
 
                       const SizedBox(height: 24),
-                      _MarketPulseCard(assets: assets, isUsd: isUsd, usdRate: usdRate),
+                      _MarketPulseCard(
+                        assets: assets,
+                        isUsd: isUsd,
+                        usdRate: usdRate,
+                      ),
 
                       const SizedBox(height: 24),
                       Padding(
@@ -226,25 +251,43 @@ class InvestmentsScreen extends ConsumerWidget {
                               Dismissible(
                                 key: Key('${asset.symbol}_${asset.hashCode}'),
                                 direction: DismissDirection.endToStart,
-                                onDismissed: (_) => ref.read(assetsProvider.notifier).remove(asset),
+                                onDismissed:
+                                    (_) => ref
+                                        .read(assetsProvider.notifier)
+                                        .remove(asset),
                                 background: Container(
                                   alignment: Alignment.centerRight,
                                   padding: const EdgeInsets.only(right: 20),
-                                  decoration: BoxDecoration(color: const Color(0xFFEF4444), borderRadius: BorderRadius.circular(16)),
-                                  child: const Icon(Icons.delete_outline, color: Colors.white),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.white,
+                                  ),
                                 ),
-                                child: _AssetCard(asset: asset, isUsd: isUsd, usdRate: usdRate),
+                                child: _AssetCard(
+                                  asset: asset,
+                                  isUsd: isUsd,
+                                  usdRate: usdRate,
+                                ),
                               ),
                               const SizedBox(height: 12),
                             ],
                             _AddAssetButton(
                               available: available,
-                              onTap: () => showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => _AddAssetSheet(maxAmount: available > 0 ? available : null),
-                              ),
+                              onTap:
+                                  () => showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder:
+                                        (_) => _AddAssetSheet(
+                                          maxAmount:
+                                              available > 0 ? available : null,
+                                        ),
+                                  ),
                             ),
                             const SizedBox(height: 32),
                           ],
@@ -277,11 +320,20 @@ class _AppBar extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
-            onTap: () => ref.read(isLineChartProvider.notifier).state = !isLineChart,
+            onTap:
+                () =>
+                    ref.read(isLineChartProvider.notifier).state = !isLineChart,
             child: Container(
               padding: const EdgeInsets.all(9),
-              decoration: const BoxDecoration(color: Color(0xFF1E2746), shape: BoxShape.circle),
-              child: Icon(isLineChart ? Icons.pie_chart_outline : Icons.show_chart, color: Colors.white, size: 20),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E2746),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isLineChart ? Icons.pie_chart_outline : Icons.show_chart,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
           GestureDetector(
@@ -289,12 +341,20 @@ class _AppBar extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.5))
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.5),
+                ),
               ),
-              child: Text(isUsd ? 'USD' : 'TRY',
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+              child: Text(
+                isUsd ? 'USD' : 'TRY',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -318,46 +378,68 @@ class _SavingsCard extends ConsumerWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFF22C55E).withOpacity(0.12),
-              const Color(0xFF1E2746).withOpacity(0.3),
+              const Color(0xFF22C55E).withValues(alpha: 0.12),
+              const Color(0xFF1E2746).withValues(alpha: 0.3),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF22C55E).withOpacity(0.25)),
+          border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.25)),
         ),
         child: summaryAsync.when(
-          loading: () => const SizedBox(
-            height: 48,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF22C55E))),
-          ),
-          error: (_, __) => const Text(
-            'Tasarruf bilgisi yüklenemedi',
-            style: TextStyle(color: Color(0xFFEF4444), fontSize: 12),
-          ),
+          loading:
+              () => const SizedBox(
+                height: 48,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF22C55E),
+                  ),
+                ),
+              ),
+          error:
+              (_, __) => const Text(
+                'Tasarruf bilgisi yüklenemedi',
+                style: TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+              ),
           data: (summary) {
             final savings = summary.savings;
-            final totalInvested = ref.watch(assetsProvider).fold(0.0, (sum, a) => sum + a.totalCost);
-            final available = (savings - totalInvested).clamp(0.0, double.infinity);
+            final totalInvested = ref
+                .watch(assetsProvider)
+                .fold(0.0, (sum, a) => sum + a.totalCost);
+            final available = (savings - totalInvested).clamp(
+              0.0,
+              double.infinity,
+            ).toDouble();
             final hasSavings = savings > 0;
             final hasAvailable = available > 0;
 
-            String fmt(double v) => v.abs().toStringAsFixed(0)
-                .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]}.');
+            String fmt(double v) => v
+                .abs()
+                .toStringAsFixed(0)
+                .replaceAllMapped(
+                  RegExp(r'(\d)(?=(\d{3})+$)'),
+                  (m) => '${m[1]}.',
+                );
 
             return Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: (hasSavings ? const Color(0xFF22C55E) : const Color(0xFFEF4444))
-                        .withOpacity(0.15),
+                    color: (hasSavings
+                            ? const Color(0xFF22C55E)
+                            : const Color(0xFFEF4444))
+                        .withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.savings_outlined,
-                    color: hasSavings ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                    color:
+                        hasSavings
+                            ? const Color(0xFF22C55E)
+                            : const Color(0xFFEF4444),
                     size: 22,
                   ),
                 ),
@@ -368,13 +450,21 @@ class _SavingsCard extends ConsumerWidget {
                     children: [
                       const Text(
                         'BU AYKİ TASARRUF',
-                        style: TextStyle(color: Color(0xFF8B95A5), fontSize: 10, letterSpacing: 0.5, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: Color(0xFF8B95A5),
+                          fontSize: 10,
+                          letterSpacing: 0.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         '${hasSavings ? '' : '-'}₺${fmt(savings)}',
                         style: TextStyle(
-                          color: hasSavings ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                          color:
+                              hasSavings
+                                  ? const Color(0xFF22C55E)
+                                  : const Color(0xFFEF4444),
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                         ),
@@ -384,7 +474,10 @@ class _SavingsCard extends ConsumerWidget {
                         Text(
                           'Portföyde: ₺${fmt(totalInvested)}  •  Kalan: ₺${fmt(available)}',
                           style: TextStyle(
-                            color: hasAvailable ? const Color(0xFF8B95A5) : const Color(0xFFEF4444),
+                            color:
+                                hasAvailable
+                                    ? const Color(0xFF8B95A5)
+                                    : const Color(0xFFEF4444),
                             fontSize: 10,
                           ),
                         ),
@@ -394,14 +487,18 @@ class _SavingsCard extends ConsumerWidget {
                 ),
                 if (hasAvailable)
                   GestureDetector(
-                    onTap: () => showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => _AddAssetSheet(maxAmount: available),
-                    ),
+                    onTap:
+                        () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => _AddAssetSheet(maxAmount: available),
+                        ),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF22C55E),
                         borderRadius: BorderRadius.circular(10),
@@ -409,18 +506,32 @@ class _SavingsCard extends ConsumerWidget {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.trending_up, color: Colors.white, size: 15),
+                          Icon(
+                            Icons.trending_up,
+                            color: Colors.white,
+                            size: 15,
+                          ),
                           SizedBox(width: 6),
-                          Text('Yatır', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                          Text(
+                            'Yatır',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   )
                 else if (hasSavings)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
@@ -430,9 +541,12 @@ class _SavingsCard extends ConsumerWidget {
                   )
                 else
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
@@ -478,8 +592,8 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
       final data = liveMap[a.symbol];
       if (data == null) continue;
 
-      final price = data['price'] as double;
-      final changePct = data['changePercent'] as double;
+      // price kullanılmıyor; livePriceTl hesabı _getLiveTlPrice üzerinden yapılıyor
+      final changePct = (data['changePercent'] as num?)?.toDouble() ?? 0.0;
       final livePriceTl = _getLiveTlPrice(data, a.symbol, usdRate).livePriceTl;
       final currentValTl = a.units * livePriceTl;
       final profitTl = currentValTl - a.totalCost;
@@ -524,8 +638,9 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
   Widget build(BuildContext context) {
     if (widget.assets.isEmpty) return const SizedBox.shrink();
 
-    final usdRate = ref.watch(yahooFinanceProvider('TRY=X'))
-            .valueOrNull?['price'] as double? ??
+    final usdRate =
+        (ref.watch(yahooFinanceProvider('TRY=X')).valueOrNull?['price'] as num?)
+            ?.toDouble() ??
         1.0;
 
     // Tüm portföy sembollerinin canlı verilerini topla
@@ -538,7 +653,9 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
     }
 
     // Veriler ilk yüklendiğinde otomatik tetikle (bir kez)
-    if (!anyLoading && !_autoTriggered && liveMap.values.any((v) => v != null)) {
+    if (!anyLoading &&
+        !_autoTriggered &&
+        liveMap.values.any((v) => v != null)) {
       _autoTriggered = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -548,11 +665,13 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
       });
     }
 
-    final insightsAsync = _contextKey != null
-        ? ref.watch(portfolioInsightsProvider(_contextKey!))
-        : null;
+    final insightsAsync =
+        _contextKey != null
+            ? ref.watch(portfolioInsightsProvider(_contextKey!))
+            : null;
 
-    final isLoading = anyLoading || insightsAsync == null || insightsAsync.isLoading;
+    final isLoading =
+        anyLoading || insightsAsync == null || insightsAsync.isLoading;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -561,14 +680,14 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              const Color(0xFF3B82F6).withOpacity(0.12),
-              const Color(0xFF1E2746).withOpacity(0.3),
+              const Color(0xFF3B82F6).withValues(alpha: 0.12),
+              const Color(0xFF1E2746).withValues(alpha: 0.3),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.25)),
+          border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.25)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,7 +695,11 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
             // ── Başlık ──
             Row(
               children: [
-                const Icon(Icons.auto_awesome, color: Color(0xFF3B82F6), size: 16),
+                const Icon(
+                  Icons.auto_awesome,
+                  color: Color(0xFF3B82F6),
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -591,14 +714,21 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
                 ),
                 if (isLoading)
                   const SizedBox(
-                    width: 12, height: 12,
+                    width: 12,
+                    height: 12,
                     child: CircularProgressIndicator(
-                        strokeWidth: 1.5, color: Color(0xFF3B82F6)),
+                      strokeWidth: 1.5,
+                      color: Color(0xFF3B82F6),
+                    ),
                   )
                 else
                   GestureDetector(
                     onTap: () {
-                      final ctx = _buildContext(widget.assets, liveMap, usdRate);
+                      final ctx = _buildContext(
+                        widget.assets,
+                        liveMap,
+                        usdRate,
+                      );
                       _refresh(ctx);
                     },
                     child: const Icon(
@@ -616,9 +746,10 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
               const Text(
                 'Canlı fiyatlar yükleniyor, analiz hazırlanıyor...',
                 style: TextStyle(
-                    color: Color(0xFF8B95A5),
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic),
+                  color: Color(0xFF8B95A5),
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
               )
             else if (insightsAsync == null)
               const Text(
@@ -627,22 +758,32 @@ class _AiAgentCardState extends ConsumerState<_AiAgentCard> {
               )
             else
               insightsAsync.when(
-                loading: () => const Text(
-                  'Ajan portföyünüzü inceliyor...',
-                  style: TextStyle(
-                      color: Color(0xFF8B95A5),
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic),
-                ),
-                error: (err, _) => Text(
-                  'Analiz yüklenemedi: $err',
-                  style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
-                ),
-                data: (insight) => Text(
-                  insight,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 12.5, height: 1.55),
-                ),
+                loading:
+                    () => const Text(
+                      'Ajan portföyünüzü inceliyor...',
+                      style: TextStyle(
+                        color: Color(0xFF8B95A5),
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                error:
+                    (err, _) => Text(
+                      'Analiz yüklenemedi: $err',
+                      style: const TextStyle(
+                        color: Color(0xFFEF4444),
+                        fontSize: 12,
+                      ),
+                    ),
+                data:
+                    (insight) => Text(
+                      insight,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        height: 1.55,
+                      ),
+                    ),
               ),
           ],
         ),
@@ -657,7 +798,11 @@ class _ChartSection extends ConsumerWidget {
   final bool isUsd;
   final double usdRate;
 
-  const _ChartSection({required this.assets, required this.isUsd, required this.usdRate});
+  const _ChartSection({
+    required this.assets,
+    required this.isUsd,
+    required this.usdRate,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -671,8 +816,9 @@ class _ChartSection extends ConsumerWidget {
       if (asset.units > 0) {
         final liveData = ref.watch(yahooFinanceProvider(asset.symbol));
         liveData.whenData((data) {
-          final livePriceTl = _getLiveTlPrice(data, asset.symbol, usdRate).livePriceTl;
-          final changePct = data['changePercent'] as double;
+          final livePriceTl =
+              _getLiveTlPrice(data, asset.symbol, usdRate).livePriceTl;
+          final changePct = (data['changePercent'] as num?)?.toDouble() ?? 0.0;
 
           final currentValueTl = asset.units * livePriceTl;
 
@@ -687,22 +833,36 @@ class _ChartSection extends ConsumerWidget {
     }
 
     final previousTotalTl = totalCurrentValueTl - totalDailyChangeTl;
-    final dailyProfitPct = previousTotalTl > 0 ? (totalDailyChangeTl / previousTotalTl) * 100 : 0.0;
+    final dailyProfitPct =
+        previousTotalTl > 0
+            ? (totalDailyChangeTl / previousTotalTl) * 100
+            : 0.0;
 
     final gainSign = totalDailyChangeTl >= 0 ? '+' : '';
-    final gainColor = totalDailyChangeTl >= 0 ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+    final gainColor =
+        totalDailyChangeTl >= 0
+            ? const Color(0xFF22C55E)
+            : const Color(0xFFEF4444);
 
-    final displayGainAmt = isUsd ? (totalDailyChangeTl / usdRate) : totalDailyChangeTl;
+    final displayGainAmt =
+        isUsd ? (totalDailyChangeTl / usdRate) : totalDailyChangeTl;
     final currencySymbol = isUsd ? '\$' : '₺';
 
-    final slices = totalCurrentValueTl == 0
-        ? <_Slice>[]
-        : assets.where((a) => a.units > 0).map((a) {
-      final liveData = ref.watch(yahooFinanceProvider(a.symbol)).valueOrNull;
-      final livePriceTl = _getLiveTlPrice(liveData, a.symbol, usdRate).livePriceTl;
-      final currentValueTl = a.units * livePriceTl;
-      return _Slice(a.color, currentValueTl / totalCurrentValueTl, a.name);
-    }).toList();
+    final slices =
+        totalCurrentValueTl == 0
+            ? <_Slice>[]
+            : assets.where((a) => a.units > 0).map((a) {
+              final liveData =
+                  ref.watch(yahooFinanceProvider(a.symbol)).valueOrNull;
+              final livePriceTl =
+                  _getLiveTlPrice(liveData, a.symbol, usdRate).livePriceTl;
+              final currentValueTl = a.units * livePriceTl;
+              return _Slice(
+                a.color,
+                currentValueTl / totalCurrentValueTl,
+                a.name,
+              );
+            }).toList();
 
     return SizedBox(
       height: 240,
@@ -712,42 +872,77 @@ class _ChartSection extends ConsumerWidget {
         children: [
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 400),
-            child: isLineChart
-                ? SizedBox(
-              key: const ValueKey('Line'),
-              width: 250, height: 160,
-              child: CustomPaint(painter: _TrendLinePainter(isProfit: totalDailyChangeTl >= 0)),
-            )
-                : SizedBox(
-              key: const ValueKey('Donut'),
-              width: double.infinity, height: double.infinity,
-              child: CustomPaint(painter: _DonutPainter(slices)),
-            ),
+            child:
+                isLineChart
+                    ? SizedBox(
+                      key: const ValueKey('Line'),
+                      width: 250,
+                      height: 160,
+                      child: CustomPaint(
+                        painter: _TrendLinePainter(
+                          isProfit: totalDailyChangeTl >= 0,
+                        ),
+                      ),
+                    )
+                    : SizedBox(
+                      key: const ValueKey('Donut'),
+                      width: double.infinity,
+                      height: double.infinity,
+                      child: CustomPaint(painter: _DonutPainter(slices)),
+                    ),
           ),
 
           Container(
-            width: 110, height: 110,
+            width: 110,
+            height: 110,
             decoration: BoxDecoration(
-                color: isLineChart ? Colors.transparent : const Color(0xFF0A0F1C),
-                shape: BoxShape.circle
+              color: isLineChart ? Colors.transparent : const Color(0xFF0A0F1C),
+              shape: BoxShape.circle,
             ),
             child: Center(
-              child: isCalculating && totalCurrentValueTl == 0
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54))
-                  : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('$gainSign${dailyProfitPct.toStringAsFixed(2)}%',
-                      style: TextStyle(color: gainColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 2),
-                  Text('$gainSign${displayGainAmt.toStringAsFixed(0)} $currencySymbol',
-                      style: TextStyle(color: gainColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w600)),
-                  if (!isLineChart) ...[
-                    const SizedBox(height: 4),
-                    const Text('GÜNLÜK', style: TextStyle(color: Color(0xFF8B95A5), fontSize: 8, letterSpacing: 0.5)),
-                  ]
-                ],
-              ),
+              child:
+                  isCalculating && totalCurrentValueTl == 0
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white54,
+                        ),
+                      )
+                      : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$gainSign${dailyProfitPct.toStringAsFixed(2)}%',
+                            style: TextStyle(
+                              color: gainColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$gainSign${displayGainAmt.toStringAsFixed(0)} $currencySymbol',
+                            style: TextStyle(
+                              color: gainColor.withValues(alpha: 0.8),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (!isLineChart) ...[
+                            const SizedBox(height: 4),
+                            const Text(
+                              'GÜNLÜK',
+                              style: TextStyle(
+                                color: Color(0xFF8B95A5),
+                                fontSize: 8,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
             ),
           ),
         ],
@@ -762,26 +957,30 @@ class _TrendLinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final themeColor = isProfit ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+    final themeColor =
+        isProfit ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
 
-    final paint = Paint()
-      ..color = themeColor
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+    final paint =
+        Paint()
+          ..color = themeColor
+          ..strokeWidth = 4
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
 
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [themeColor.withOpacity(0.3), Colors.transparent],
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(Rect.fromLTRB(0, 0, size.width, size.height))
-      ..style = PaintingStyle.fill;
+    final fillPaint =
+        Paint()
+          ..shader = LinearGradient(
+            colors: [themeColor.withValues(alpha: 0.3), Colors.transparent],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ).createShader(Rect.fromLTRB(0, 0, size.width, size.height))
+          ..style = PaintingStyle.fill;
 
     final path = Path();
-    final points = isProfit
-        ? [0.7, 0.8, 0.6, 0.5, 0.4, 0.45, 0.2]
-        : [0.2, 0.3, 0.25, 0.5, 0.4, 0.6, 0.8];
+    final points =
+        isProfit
+            ? [0.7, 0.8, 0.6, 0.5, 0.4, 0.45, 0.2]
+            : [0.2, 0.3, 0.25, 0.5, 0.4, 0.6, 0.8];
 
     final stepX = size.width / (points.length - 1);
 
@@ -796,17 +995,19 @@ class _TrendLinePainter extends CustomPainter {
       path.cubicTo(controlPointX, y1, controlPointX, y2, x2, y2);
     }
 
-    final fillPath = Path.from(path)
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
+    final fillPath =
+        Path.from(path)
+          ..lineTo(size.width, size.height)
+          ..lineTo(0, size.height)
+          ..close();
 
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(_TrendLinePainter oldDelegate) => oldDelegate.isProfit != isProfit;
+  bool shouldRepaint(_TrendLinePainter oldDelegate) =>
+      oldDelegate.isProfit != isProfit;
 }
 
 class _Slice {
@@ -826,12 +1027,25 @@ class _DonutPainter extends CustomPainter {
     final radius = 65.0;
     const strokeWidth = 24.0;
 
-    final arcPaint = Paint()..style = PaintingStyle.stroke..strokeWidth = strokeWidth;
-    final linePaint = Paint()..color = Colors.white.withOpacity(0.3)..style = PaintingStyle.stroke..strokeWidth = 1.0;
+    final arcPaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth;
+    final linePaint =
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.3)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0;
 
     if (slices.isEmpty) {
-      arcPaint.color = Colors.white.withOpacity(0.05);
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 0, 2 * pi, false, arcPaint);
+      arcPaint.color = Colors.white.withValues(alpha: 0.05);
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        0,
+        2 * pi,
+        false,
+        arcPaint,
+      );
       return;
     }
 
@@ -839,7 +1053,13 @@ class _DonutPainter extends CustomPainter {
     for (final s in slices) {
       final sweepAngle = s.ratio * 2 * pi;
       arcPaint.color = s.color;
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepAngle, false, arcPaint);
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        false,
+        arcPaint,
+      );
       startAngle += sweepAngle;
     }
 
@@ -858,17 +1078,34 @@ class _DonutPainter extends CustomPainter {
       final isRightSide = cos(midAngle) >= 0;
       final endLineX = breakPointX + (isRightSide ? 25 : -25);
 
-      canvas.drawLine(Offset(startX, startY), Offset(breakPointX, breakPointY), linePaint);
-      canvas.drawLine(Offset(breakPointX, breakPointY), Offset(endLineX, breakPointY), linePaint);
+      canvas.drawLine(
+        Offset(startX, startY),
+        Offset(breakPointX, breakPointY),
+        linePaint,
+      );
+      canvas.drawLine(
+        Offset(breakPointX, breakPointY),
+        Offset(endLineX, breakPointY),
+        linePaint,
+      );
 
       final textSpan = TextSpan(
-        text: '%${(s.ratio * 100).toStringAsFixed(1)} ${s.label.replaceAll('(Gram)', '').trim()}',
-        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+        text:
+            '%${(s.ratio * 100).toStringAsFixed(1)} ${s.label.replaceAll('(Gram)', '').trim()}',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+        ),
       );
-      final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: TextDirection.ltr,
+      );
       textPainter.layout();
 
-      final textX = isRightSide ? endLineX + 6 : endLineX - textPainter.width - 6;
+      final textX =
+          isRightSide ? endLineX + 6 : endLineX - textPainter.width - 6;
       final textY = breakPointY - textPainter.height / 2;
 
       textPainter.paint(canvas, Offset(textX, textY));
@@ -886,7 +1123,11 @@ class _PortfolioTotal extends ConsumerWidget {
   final bool isUsd;
   final double usdRate;
 
-  const _PortfolioTotal({required this.assets, required this.isUsd, required this.usdRate});
+  const _PortfolioTotal({
+    required this.assets,
+    required this.isUsd,
+    required this.usdRate,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -894,46 +1135,79 @@ class _PortfolioTotal extends ConsumerWidget {
 
     for (final asset in assets) {
       if (asset.units > 0) {
-        final liveData = ref.watch(yahooFinanceProvider(asset.symbol)).valueOrNull;
-        final livePriceTl = _getLiveTlPrice(liveData, asset.symbol, usdRate).livePriceTl;
+        final liveData =
+            ref.watch(yahooFinanceProvider(asset.symbol)).valueOrNull;
+        final livePriceTl =
+            _getLiveTlPrice(liveData, asset.symbol, usdRate).livePriceTl;
         totalCurrentValueTl += (asset.units * livePriceTl);
       }
     }
 
-    return Column(children: [
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.chevron_left, color: Color(0xFF8B95A5), size: 18),
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.chevron_left, color: Color(0xFF8B95A5), size: 18),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E2746).withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(
+                children: [
+                  Text(
+                    'GELECEĞİNİZ İÇİN',
+                    style: TextStyle(
+                      color: Color(0xFF8B95A5),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.emoji_events_outlined,
+                    color: Color(0xFF8B95A5),
+                    size: 13,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Color(0xFF8B95A5), size: 18),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          _formatCurrency(totalCurrentValueTl, isUsd, usdRate),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-              color: const Color(0xFF1E2746).withOpacity(0.5), borderRadius: BorderRadius.circular(20)),
-          child: const Row(children: [
-            Text('GELECEĞİNİZ İÇİN',
-                style: TextStyle(color: Color(0xFF8B95A5), fontSize: 10,
-                    fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-            SizedBox(width: 4),
-            Icon(Icons.emoji_events_outlined, color: Color(0xFF8B95A5), size: 13),
-          ]),
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF1E2746)),
+          ),
+          child: const Text(
+            'PORTFÖY DEĞERİ',
+            style: TextStyle(
+              color: Color(0xFF8B95A5),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
         ),
-        const Icon(Icons.chevron_right, color: Color(0xFF8B95A5), size: 18),
-      ]),
-      const SizedBox(height: 10),
-      Text(_formatCurrency(totalCurrentValueTl, isUsd, usdRate),
-          style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 10),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF1E2746)),
-        ),
-        child: const Text('PORTFÖY DEĞERİ',
-            style: TextStyle(color: Color(0xFF8B95A5), fontSize: 10,
-                fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-      ),
-    ]);
+      ],
+    );
   }
 }
 
@@ -943,7 +1217,11 @@ class _AssetCard extends ConsumerWidget {
   final bool isUsd;
   final double usdRate;
 
-  const _AssetCard({required this.asset, required this.isUsd, required this.usdRate});
+  const _AssetCard({
+    required this.asset,
+    required this.isUsd,
+    required this.usdRate,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -952,68 +1230,124 @@ class _AssetCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-          color: const Color(0xFF1E2746), borderRadius: BorderRadius.circular(16)),
-      child: Row(children: [
-        Container(width: 8, height: 8,
-            decoration: BoxDecoration(color: asset.color, shape: BoxShape.circle)),
-        const SizedBox(width: 10),
+        color: const Color(0xFF1E2746),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: asset.color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
 
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(asset.name,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-            if (asset.units > 0)
-              Text(
-                '${asset.units.toStringAsFixed(asset.symbol.contains('GC') ? 2 : 0)} ${_getUnitString(asset.symbol)}',
-                style: const TextStyle(color: Color(0xFF8B95A5), fontSize: 11),
-              ),
-          ]),
-        ),
-
-        live.when(
-          loading: () => const SizedBox(width: 14, height: 14,
-              child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white54)),
-          error: (_, __) =>
-          const Text('—', style: TextStyle(color: Colors.red, fontSize: 12)),
-          data: (data) {
-            final livePriceTl = _getLiveTlPrice(data, asset.symbol, usdRate).livePriceTl;
-
-            final currentValueTl = asset.units * livePriceTl;
-            final profitTl = currentValueTl - asset.totalCost;
-            final profitPct = asset.totalCost > 0 ? (profitTl / asset.totalCost) * 100 : 0.0;
-
-            final isUp = profitTl >= 0;
-            final clr = isUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
-
-            final displayValue = isUsd ? (currentValueTl / usdRate) : currentValueTl;
-            final displayProfit = isUsd ? (profitTl / usdRate) : profitTl;
-            final currencyPrefix = isUsd ? '\$' : '₺';
-
-            return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Row(children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  '$currencyPrefix${displayValue.toStringAsFixed(2)}',
+                  asset.name,
                   style: const TextStyle(
-                      color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(color: clr, shape: BoxShape.circle),
-                  child: Icon(
-                      isUp ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                      color: Colors.white, size: 12),
+                if (asset.units > 0)
+                  Text(
+                    '${asset.units.toStringAsFixed(asset.symbol.contains('GC') ? 2 : 0)} ${_getUnitString(asset.symbol)}',
+                    style: const TextStyle(
+                      color: Color(0xFF8B95A5),
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          live.when(
+            loading:
+                () => const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: Colors.white54,
+                  ),
                 ),
-              ]),
-              Text(
-                '${isUp ? '+' : ''}${displayProfit.toStringAsFixed(2)}  %${profitPct.toStringAsFixed(2)}',
-                style: TextStyle(color: clr, fontSize: 11, fontWeight: FontWeight.w600),
-              ),
-            ]);
-          },
-        ),
-      ]),
+            error:
+                (_, __) => const Text(
+                  '—',
+                  style: TextStyle(color: Colors.red, fontSize: 12),
+                ),
+            data: (data) {
+              final livePriceTl =
+                  _getLiveTlPrice(data, asset.symbol, usdRate).livePriceTl;
+
+              final currentValueTl = asset.units * livePriceTl;
+              final profitTl = currentValueTl - asset.totalCost;
+              final profitPct =
+                  asset.totalCost > 0
+                      ? (profitTl / asset.totalCost) * 100
+                      : 0.0;
+
+              final isUp = profitTl >= 0;
+              final clr =
+                  isUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+
+              final displayValue =
+                  isUsd ? (currentValueTl / usdRate) : currentValueTl;
+              final displayProfit = isUsd ? (profitTl / usdRate) : profitTl;
+              final currencyPrefix = isUsd ? '\$' : '₺';
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '$currencyPrefix${displayValue.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: clr,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isUp
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${isUp ? '+' : ''}${displayProfit.toStringAsFixed(2)}  %${profitPct.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: clr,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1033,28 +1367,37 @@ class _AddAssetButton extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E2746).withOpacity(hasLimit ? 0.3 : 0.5),
+          color: const Color(0xFF1E2746).withValues(alpha: hasLimit ? 0.3 : 0.5),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.07)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
         ),
         child: Column(
           children: [
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(
-                hasLimit ? Icons.block : Icons.add_circle_outline,
-                color: hasLimit ? const Color(0xFFEF4444).withOpacity(0.6) : const Color(0xFF8B95A5),
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Varlık Ekle',
-                style: TextStyle(
-                  color: hasLimit ? const Color(0xFF8B95A5).withOpacity(0.5) : const Color(0xFF8B95A5),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  hasLimit ? Icons.block : Icons.add_circle_outline,
+                  color:
+                      hasLimit
+                          ? const Color(0xFFEF4444).withValues(alpha: 0.6)
+                          : const Color(0xFF8B95A5),
+                  size: 18,
                 ),
-              ),
-            ]),
+                const SizedBox(width: 8),
+                Text(
+                  'Varlık Ekle',
+                  style: TextStyle(
+                    color:
+                        hasLimit
+                            ? const Color(0xFF8B95A5).withValues(alpha: 0.5)
+                            : const Color(0xFF8B95A5),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
             if (hasLimit) ...[
               const SizedBox(height: 4),
               const Text(
@@ -1079,9 +1422,9 @@ class _MarketPulseCard extends ConsumerWidget {
 
   // Portföyde olmasa bile her zaman gösterilecek piyasa göstergeleri
   static const _watchlist = [
-    {'symbol': 'TRY=X',    'name': 'Dolar / TL',    'colorHex': 0xFF22C55E},
-    {'symbol': 'GC=F',     'name': 'Altın (gram)',   'colorHex': 0xFFF59E0B},
-    {'symbol': 'XU100.IS', 'name': 'BIST 100',       'colorHex': 0xFF3B82F6},
+    {'symbol': 'TRY=X', 'name': 'Dolar / TL', 'colorHex': 0xFF22C55E},
+    {'symbol': 'GC=F', 'name': 'Altın (gram)', 'colorHex': 0xFFF59E0B},
+    {'symbol': 'XU100.IS', 'name': 'BIST 100', 'colorHex': 0xFF3B82F6},
   ];
 
   const _MarketPulseCard({
@@ -1093,15 +1436,17 @@ class _MarketPulseCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now();
-    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final timeStr =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     // Portföydeki semboller
     final portfolioSymbols = assets.map((a) => a.symbol).toSet();
 
     // İzleme listesinden portföyde olmayanları ekle
-    final watchEntries = _watchlist
-        .where((w) => !portfolioSymbols.contains(w['symbol']))
-        .toList();
+    final watchEntries =
+        _watchlist
+            .where((w) => !portfolioSymbols.contains(w['symbol']))
+            .toList();
 
     final hasContent = assets.isNotEmpty || watchEntries.isNotEmpty;
 
@@ -1120,7 +1465,11 @@ class _MarketPulseCard extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
               child: Row(
                 children: [
-                  const Icon(Icons.bar_chart_rounded, color: Color(0xFF8B95A5), size: 16),
+                  const Icon(
+                    Icons.bar_chart_rounded,
+                    color: Color(0xFF8B95A5),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   const Text(
                     'PİYASA NABZI',
@@ -1134,7 +1483,10 @@ class _MarketPulseCard extends ConsumerWidget {
                   const Spacer(),
                   Text(
                     'Günlük  •  $timeStr',
-                    style: const TextStyle(color: Color(0xFF4B5563), fontSize: 10),
+                    style: const TextStyle(
+                      color: Color(0xFF4B5563),
+                      fontSize: 10,
+                    ),
                   ),
                 ],
               ),
@@ -1210,7 +1562,7 @@ class _PulseRow extends ConsumerWidget {
   final String symbol;
   final String name;
   final Color color;
-  final double positionUnits;   // 0 → izleme listesi (pozisyon yok)
+  final double positionUnits; // 0 → izleme listesi (pozisyon yok)
   final double positionCostTl;
   final double usdRate;
   final bool isUsd;
@@ -1241,8 +1593,12 @@ class _PulseRow extends ConsumerWidget {
               children: [
                 // Renk noktası
                 Container(
-                  width: 7, height: 7,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 10),
 
@@ -1260,32 +1616,49 @@ class _PulseRow extends ConsumerWidget {
 
                 // Canlı veri
                 liveAsync.when(
-                  loading: () => const SizedBox(
-                    width: 12, height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.2, color: Colors.white24),
-                  ),
-                  error: (_, __) => const Text(
-                    'Veri yok',
-                    style: TextStyle(color: Color(0xFF4B5563), fontSize: 11),
-                  ),
+                  loading:
+                      () => const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.2,
+                          color: Colors.white24,
+                        ),
+                      ),
+                  error:
+                      (_, __) => const Text(
+                        'Veri yok',
+                        style: TextStyle(
+                          color: Color(0xFF4B5563),
+                          fontSize: 11,
+                        ),
+                      ),
                   data: (data) {
-                    final changePct = data['changePercent'] as double;
-                    final price = data['price'] as double;
+                    final changePct =
+                        (data['changePercent'] as num?)?.toDouble() ?? 0.0;
+                    // price doğrudan kullanılmıyor; changePct rozet için yeterli
                     final isUp = changePct >= 0;
-                    final clr = isUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+                    final clr =
+                        isUp
+                            ? const Color(0xFF22C55E)
+                            : const Color(0xFFEF4444);
                     final sign = isUp ? '+' : '';
 
                     // Pozisyon varsa günlük kazanç/kayıp hesapla
                     String? positionLine;
                     if (positionUnits > 0) {
-                      final livePriceTl = _getLiveTlPrice(data, symbol, usdRate).livePriceTl;
+                      final livePriceTl =
+                          _getLiveTlPrice(data, symbol, usdRate).livePriceTl;
                       final currentValTl = positionUnits * livePriceTl;
-                      final previousValTl = currentValTl / (1 + changePct / 100);
+                      final previousValTl =
+                          currentValTl / (1 + changePct / 100);
                       final dailyDeltaTl = currentValTl - previousValTl;
-                      final displayDelta = isUsd ? (dailyDeltaTl / usdRate) : dailyDeltaTl;
+                      final displayDelta =
+                          isUsd ? (dailyDeltaTl / usdRate) : dailyDeltaTl;
                       final prefix = isUsd ? '\$' : '₺';
                       final deltaSign = dailyDeltaTl >= 0 ? '+' : '';
-                      positionLine = '$deltaSign$prefix${displayDelta.toStringAsFixed(0)} bugün';
+                      positionLine =
+                          '$deltaSign$prefix${displayDelta.toStringAsFixed(0)} bugün';
                     }
 
                     return Row(
@@ -1295,7 +1668,10 @@ class _PulseRow extends ConsumerWidget {
                           Text(
                             positionLine,
                             style: TextStyle(
-                              color: isUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                              color:
+                                  isUp
+                                      ? const Color(0xFF22C55E)
+                                      : const Color(0xFFEF4444),
                               fontSize: 11,
                             ),
                           ),
@@ -1303,17 +1679,23 @@ class _PulseRow extends ConsumerWidget {
                         ],
                         // % değişim rozeti
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
-                            color: clr.withOpacity(0.15),
+                            color: clr.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                isUp ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                                color: clr, size: 14,
+                                isUp
+                                    ? Icons.arrow_drop_up
+                                    : Icons.arrow_drop_down,
+                                color: clr,
+                                size: 14,
                               ),
                               Text(
                                 '$sign${changePct.toStringAsFixed(2)}%',
@@ -1333,8 +1715,7 @@ class _PulseRow extends ConsumerWidget {
               ],
             ),
           ),
-          if (!isLast)
-            const Divider(color: Color(0xFF0D1426), height: 1),
+          if (!isLast) const Divider(color: Color(0xFF0D1426), height: 1),
         ],
       ),
     );
@@ -1360,22 +1741,45 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
   bool _isLotMode = false;
 
   List<Map<String, dynamic>> get _all => [
-    ..._kCatalog.map((e) => {'name': e['name'], 'symbol': e['symbol'], 'prefix': e['prefix'], 'colorHex': e['colorHex'], 'ticker': ''}),
-    ..._kBist.map((e) => {'name': e['name'], 'symbol': e['symbol'], 'prefix': '₺', 'colorHex': 0xFF3B82F6, 'ticker': e['ticker']}),
+    ..._kCatalog.map(
+      (e) => {
+        'name': e['name'],
+        'symbol': e['symbol'],
+        'prefix': e['prefix'],
+        'colorHex': e['colorHex'],
+        'ticker': '',
+      },
+    ),
+    ..._kBist.map(
+      (e) => {
+        'name': e['name'],
+        'symbol': e['symbol'],
+        'prefix': '₺',
+        'colorHex': 0xFF3B82F6,
+        'ticker': e['ticker'],
+      },
+    ),
   ];
 
   List<Map<String, dynamic>> get _filtered {
     final q = _query.toUpperCase().trim();
     if (q.isEmpty) return _all;
 
-    final matches = _all.where((e) {
-      return (e['name'] as String).toUpperCase().contains(q) ||
-          (e['symbol'] as String).toUpperCase().contains(q) ||
-          (e['ticker'] as String).toUpperCase().contains(q);
-    }).toList();
+    final matches =
+        _all.where((e) {
+          return (e['name'] as String).toUpperCase().contains(q) ||
+              (e['symbol'] as String).toUpperCase().contains(q) ||
+              (e['ticker'] as String).toUpperCase().contains(q);
+        }).toList();
 
     if (matches.isEmpty && q.isNotEmpty) {
-      matches.add({'name': '$q Hissesi', 'symbol': '$q.IS', 'prefix': '₺', 'colorHex': 0xFF3B82F6, 'ticker': q});
+      matches.add({
+        'name': '$q Hissesi',
+        'symbol': '$q.IS',
+        'prefix': '₺',
+        'colorHex': 0xFF3B82F6,
+        'ticker': q,
+      });
     }
 
     return matches;
@@ -1391,9 +1795,13 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         decoration: const BoxDecoration(
           color: Color(0xFF1E2746),
@@ -1403,57 +1811,139 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)))),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
 
-            Row(children: [
-              if (_step2)
-                GestureDetector(
-                  onTap: () => setState(() { _step2 = false; _chosen = null; _amountCtrl.clear(); }),
-                  child: const Padding(padding: EdgeInsets.only(right: 8), child: Icon(Icons.arrow_back_ios, color: Colors.white54, size: 18)),
+            Row(
+              children: [
+                if (_step2)
+                  GestureDetector(
+                    onTap:
+                        () => setState(() {
+                          _step2 = false;
+                          _chosen = null;
+                          _amountCtrl.clear();
+                        }),
+                    child: const Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: Icon(
+                        Icons.arrow_back_ios,
+                        color: Colors.white54,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                Text(
+                  _step2 ? 'Değer Girin' : 'Varlık Ekle',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              Text(_step2 ? 'Değer Girin' : 'Varlık Ekle', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-            ]),
+              ],
+            ),
             const SizedBox(height: 16),
 
             if (!_step2) ...[
               TextField(
-                controller: _searchCtrl, autofocus: true,
+                controller: _searchCtrl,
+                autofocus: true,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
                 onChanged: (v) => setState(() => _query = v),
                 decoration: InputDecoration(
                   hintText: 'Ara: Altın, SASA, THYAO...',
-                  hintStyle: const TextStyle(color: Color(0xFF8B95A5), fontSize: 13),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF8B95A5), size: 20),
-                  filled: true, fillColor: const Color(0xFF0D1426),
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF8B95A5),
+                    fontSize: 13,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF8B95A5),
+                    size: 20,
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFF0D1426),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
               Flexible(
                 child: ListView.separated(
-                  shrinkWrap: true, itemCount: _filtered.length,
-                  separatorBuilder: (_, __) => const Divider(color: Colors.white10, height: 1),
+                  shrinkWrap: true,
+                  itemCount: _filtered.length,
+                  separatorBuilder:
+                      (_, __) =>
+                          const Divider(color: Colors.white10, height: 1),
                   itemBuilder: (_, i) {
                     final item = _filtered[i];
                     final color = Color(item['colorHex'] as int);
                     return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      leading: Container(
-                        width: 36, height: 36, decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
-                        child: Center(child: Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle))),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
                       ),
-                      title: Text(item['name'] as String, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)),
-                      subtitle: Text(item['symbol'] as String, style: const TextStyle(color: Color(0xFF8B95A5), fontSize: 11)),
-                      trailing: const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
-                      onTap: () => setState(() {
-                        _chosen = item;
-                        _step2 = true;
-                        if (widget.maxAmount != null && widget.maxAmount! > 0) {
-                          _amountCtrl.text = widget.maxAmount!.toStringAsFixed(0);
-                        }
-                      }),
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        item['name'] as String,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: Text(
+                        item['symbol'] as String,
+                        style: const TextStyle(
+                          color: Color(0xFF8B95A5),
+                          fontSize: 11,
+                        ),
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white24,
+                        size: 18,
+                      ),
+                      onTap:
+                          () => setState(() {
+                            _chosen = item;
+                            _step2 = true;
+                            if (widget.maxAmount != null &&
+                                widget.maxAmount! > 0) {
+                              _amountCtrl.text = widget.maxAmount!
+                                  .toStringAsFixed(0);
+                            }
+                          }),
                     );
                   },
                 ),
@@ -1469,163 +1959,291 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
 
   Widget _buildStep2Input() {
     final tryData = ref.watch(yahooFinanceProvider('TRY=X'));
-    final usdRate = tryData.valueOrNull?['price'] as double? ?? 1.0;
+    final usdRate = (tryData.valueOrNull?['price'] as num?)?.toDouble() ?? 1.0;
     final liveDataAsync = ref.watch(yahooFinanceProvider(_chosen!['symbol']));
 
     final unitStr = _getUnitString(_chosen!['symbol']);
 
     return liveDataAsync.when(
-        loading: () => const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator())),
-        error: (_, __) => const Center(child: Text('Fiyat alınamadı.', style: TextStyle(color: Colors.red))),
-        data: (data) {
-          final livePriceTl = _getLiveTlPrice(data, _chosen!['symbol'], usdRate).livePriceTl;
-          final inputVal = double.tryParse(_amountCtrl.text.replaceAll(',', '.')) ?? 0.0;
-          final tlEquivalent = _isLotMode ? inputVal * livePriceTl : inputVal;
-          final maxAmount = widget.maxAmount;
-          final isOverLimit = maxAmount != null && inputVal > 0 && tlEquivalent > maxAmount;
+      loading:
+          () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32.0),
+              child: CircularProgressIndicator(),
+            ),
+          ),
+      error:
+          (_, __) => const Center(
+            child: Text(
+              'Fiyat alınamadı.',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+      data: (data) {
+        final livePriceTl =
+            _getLiveTlPrice(data, _chosen!['symbol'], usdRate).livePriceTl;
+        final inputVal = parseMoneyAmount(_amountCtrl.text) ?? 0.0;
+        final tlEquivalent = _isLotMode ? inputVal * livePriceTl : inputVal;
+        final maxAmount = widget.maxAmount;
+        final isOverLimit =
+            maxAmount != null && inputVal > 0 && tlEquivalent > maxAmount;
 
-          String previewText = '';
-          if (inputVal > 0) {
-            if (_isLotMode) {
-              previewText = '≈ Maliyet: ${_formatCurrency(inputVal * livePriceTl, false, 1.0)}';
-            } else {
-              previewText = '≈ ${(inputVal / (livePriceTl > 0 ? livePriceTl : 1)).toStringAsFixed(4)} $unitStr';
-            }
+        String previewText = '';
+        if (inputVal > 0) {
+          if (_isLotMode) {
+            previewText =
+                '≈ Maliyet: ${_formatCurrency(inputVal * livePriceTl, false, 1.0)}';
+          } else {
+            previewText =
+                '≈ ${(inputVal / (livePriceTl > 0 ? livePriceTl : 1)).toStringAsFixed(4)} $unitStr';
           }
+        }
 
-          return Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: const Color(0xFF0D1426), borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  Container(width: 12, height: 12, decoration: BoxDecoration(color: Color(_chosen!['colorHex'] as int), shape: BoxShape.circle)),
+        return Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D1426),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Color(_chosen!['colorHex'] as int),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_chosen!['name'] as String, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-                        Text(_chosen!['symbol'] as String, style: const TextStyle(color: Color(0xFF8B95A5), fontSize: 11)),
+                        Text(
+                          _chosen!['name'] as String,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          _chosen!['symbol'] as String,
+                          style: const TextStyle(
+                            color: Color(0xFF8B95A5),
+                            fontSize: 11,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('Anlık Fiyat', style: TextStyle(color: Color(0xFF8B95A5), fontSize: 10)),
-                      Text('₺${livePriceTl.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Anlık Fiyat',
+                        style: TextStyle(
+                          color: Color(0xFF8B95A5),
+                          fontSize: 10,
+                        ),
+                      ),
+                      Text(
+                        '₺${livePriceTl.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
-                ]),
+                ],
               ),
-              const SizedBox(height: 20),
+            ),
+            const SizedBox(height: 20),
 
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: const Color(0xFF0D1426), borderRadius: BorderRadius.circular(12)),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () { setState(() { _isLotMode = false; _amountCtrl.clear(); }); },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                              color: !_isLotMode ? const Color(0xFF1E2746) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8)
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D1426),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isLotMode = false;
+                          _amountCtrl.clear();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color:
+                              !_isLotMode
+                                  ? const Color(0xFF1E2746)
+                                  : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Tutar (TL)',
+                            style: TextStyle(
+                              color:
+                                  !_isLotMode ? Colors.white : Colors.white54,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          child: Center(child: Text('Tutar (TL)', style: TextStyle(color: !_isLotMode ? Colors.white : Colors.white54, fontSize: 13, fontWeight: FontWeight.w600))),
                         ),
                       ),
                     ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () { setState(() { _isLotMode = true; _amountCtrl.clear(); }); },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                              color: _isLotMode ? const Color(0xFF1E2746) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8)
-                          ),
-                          child: Center(child: Text('Miktar ($unitStr)', style: TextStyle(color: _isLotMode ? Colors.white : Colors.white54, fontSize: 13, fontWeight: FontWeight.w600))),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              TextField(
-                controller: _amountCtrl,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: '0',
-                  hintStyle: const TextStyle(color: Color(0xFF8B95A5), fontSize: 28),
-                  prefixText: !_isLotMode ? '₺ ' : '',
-                  suffixText: _isLotMode ? ' $unitStr' : '',
-                  prefixStyle: const TextStyle(color: Color(0xFF8B95A5), fontSize: 20),
-                  suffixStyle: const TextStyle(color: Color(0xFF8B95A5), fontSize: 16),
-                  filled: true,
-                  fillColor: const Color(0xFF0D1426),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 20),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              if (maxAmount != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    'Yatırılabilir limit: ₺${maxAmount.toStringAsFixed(0)}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF8B95A5), fontSize: 11),
                   ),
-                ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isLotMode = true;
+                          _amountCtrl.clear();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color:
+                              _isLotMode
+                                  ? const Color(0xFF1E2746)
+                                  : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Miktar ($unitStr)',
+                            style: TextStyle(
+                              color: _isLotMode ? Colors.white : Colors.white54,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
 
-              Center(
+            TextField(
+              controller: _amountCtrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: '0',
+                hintStyle: const TextStyle(
+                  color: Color(0xFF8B95A5),
+                  fontSize: 28,
+                ),
+                prefixText: !_isLotMode ? '₺ ' : '',
+                suffixText: _isLotMode ? ' $unitStr' : '',
+                prefixStyle: const TextStyle(
+                  color: Color(0xFF8B95A5),
+                  fontSize: 20,
+                ),
+                suffixStyle: const TextStyle(
+                  color: Color(0xFF8B95A5),
+                  fontSize: 16,
+                ),
+                filled: true,
+                fillColor: const Color(0xFF0D1426),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 20),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            if (maxAmount != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
-                  isOverLimit
-                      ? '⚠️ Tasarruf limitini (₺${maxAmount!.toStringAsFixed(0)}) aşıyorsunuz!'
-                      : previewText.isEmpty
-                          ? 'Eklemek istediğiniz değeri girin'
-                          : previewText,
-                  style: TextStyle(
-                    color: isOverLimit ? const Color(0xFFEF4444) : const Color(0xFF22C55E),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                  'Yatırılabilir limit: ₺${maxAmount.toStringAsFixed(0)}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF8B95A5),
+                    fontSize: 11,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: inputVal > 0 && !isOverLimit ? () => _add(livePriceTl) : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF22C55E),
-                    disabledBackgroundColor: Colors.white10,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Portföye Ekle', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+            Center(
+              child: Text(
+                isOverLimit
+                    ? '⚠️ Tasarruf limitini (₺${maxAmount.toStringAsFixed(0)}) aşıyorsunuz!'
+                    : previewText.isEmpty
+                    ? 'Eklemek istediğiniz değeri girin'
+                    : previewText,
+                style: TextStyle(
+                  color:
+                      isOverLimit
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFF22C55E),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          );
-        }
+            ),
+
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed:
+                    inputVal > 0 && !isOverLimit
+                        ? () => _add(livePriceTl)
+                        : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF22C55E),
+                  disabledBackgroundColor: Colors.white10,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: const Text(
+                  'Portföye Ekle',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   void _add(double livePriceTl) {
-    final inputVal = double.tryParse(_amountCtrl.text.replaceAll(',', '.')) ?? 0.0;
+    final inputVal = parseMoneyAmount(_amountCtrl.text) ?? 0.0;
     if (inputVal <= 0 || _chosen == null) return;
 
     double finalUnits = 0;
@@ -1639,14 +2257,18 @@ class _AddAssetSheetState extends ConsumerState<_AddAssetSheet> {
       finalUnits = inputVal / (livePriceTl > 0 ? livePriceTl : 1);
     }
 
-    ref.read(assetsProvider.notifier).add(Asset(
-      name:   _chosen!['name']   as String,
-      symbol: _chosen!['symbol'] as String,
-      prefix: _chosen!['prefix'] as String,
-      color:  Color(_chosen!['colorHex'] as int),
-      units: finalUnits,
-      totalCost: finalCostTl,
-    ));
+    ref
+        .read(assetsProvider.notifier)
+        .add(
+          Asset(
+            name: _chosen!['name'] as String,
+            symbol: _chosen!['symbol'] as String,
+            prefix: _chosen!['prefix'] as String,
+            color: Color(_chosen!['colorHex'] as int),
+            units: finalUnits,
+            totalCost: finalCostTl,
+          ),
+        );
     Navigator.pop(context);
   }
 }

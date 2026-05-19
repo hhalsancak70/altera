@@ -127,14 +127,14 @@ class AgentLogEntry {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'agent': agent.shortName,
-        'message': message,
-        'detail': detail,
-        'timestamp': timestamp.toIso8601String(),
-        'level': level.name,
-        'durationMs': durationMs,
-      };
+    'id': id,
+    'agent': agent.shortName,
+    'message': message,
+    'detail': detail,
+    'timestamp': timestamp.toIso8601String(),
+    'level': level.name,
+    'durationMs': durationMs,
+  };
 
   factory AgentLogEntry.fromJson(Map<String, dynamic> json) {
     // shortName'den AgentType bul

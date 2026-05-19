@@ -34,7 +34,8 @@ class AppConstants {
   // --- AJAN ---
 
   /// Ajan döngüsü kontrol aralığı (saniye) - otomatik mod
-  static const int kAgentCycleIntervalSeconds = 30;
+  /// Gemini free tier 15 RPM limiti; döngü başına ~12 istek → 5dk güvenli aralık
+  static const int kAgentCycleIntervalSeconds = 300;
 
   /// Ajan log maksimum kayıt sayısı - eski kayıtlar otomatik silinir
   static const int kMaxAgentLogEntries = 500;
@@ -47,8 +48,8 @@ class AppConstants {
   /// SQLite veritabanı dosya adı
   static const String kDatabaseName = 'altera.db';
 
-  /// SQLite şema versiyonu - monthly_archives tablosu v2'de eklendi
-  static const int kDatabaseVersion = 2;
+  /// SQLite şema versiyonu - v3: transaction_fingerprint unique index eklendi
+  static const int kDatabaseVersion = 3;
 
   // --- YATIRIM ---
 

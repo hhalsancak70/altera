@@ -83,9 +83,7 @@ class _AlteraBottomNavState extends ConsumerState<AlteraBottomNav>
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surfaceDark,
-        border: Border(
-          top: BorderSide(color: Color(0xFF1F2937), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0xFF1F2937), width: 1)),
       ),
       child: SafeArea(
         child: SizedBox(
@@ -225,7 +223,8 @@ class _AgentNavItem extends StatelessWidget {
                   child: Icon(
                     isActive ? Icons.smart_toy : Icons.smart_toy_outlined,
                     key: ValueKey(isActive),
-                    color: isActive ? AppColors.accent : AppColors.textSecondary,
+                    color:
+                        isActive ? AppColors.accent : AppColors.textSecondary,
                     size: 22,
                   ),
                 ),
@@ -235,17 +234,18 @@ class _AgentNavItem extends StatelessWidget {
                     top: -2,
                     child: AnimatedBuilder(
                       animation: pulseAnimation,
-                      builder: (context, child) => Opacity(
-                        opacity: pulseAnimation.value,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
+                      builder:
+                          (context, child) => Opacity(
+                            opacity: pulseAnimation.value,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.success,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                     ),
                   ),
               ],

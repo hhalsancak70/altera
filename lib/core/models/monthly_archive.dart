@@ -37,15 +37,28 @@ class MonthlyArchive {
   /// Türkçe ay adı (Ocak, Şubat, ...)
   String get monthNameTr {
     const names = [
-      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+      '',
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
     ];
     return names[month];
   }
 
   /// Tasarruf oranı (0.0-1.0), gelir sıfırsa 0 döner
   double get savingsRate =>
-      totalIncome > 0 ? (totalSavings / totalIncome).clamp(0.0, 1.0) : 0.0;
+      totalIncome > 0
+          ? (totalSavings / totalIncome).clamp(0.0, 1.0).toDouble()
+          : 0.0;
 
   Map<String, dynamic> toDbMap() {
     return {
@@ -65,7 +78,8 @@ class MonthlyArchive {
 
   factory MonthlyArchive.fromDbMap(Map<String, dynamic> map) {
     final categoryJson =
-        jsonDecode(map['category_json'] as String? ?? '{}') as Map<String, dynamic>;
+        jsonDecode(map['category_json'] as String? ?? '{}')
+            as Map<String, dynamic>;
 
     return MonthlyArchive(
       id: map['id'] as String,

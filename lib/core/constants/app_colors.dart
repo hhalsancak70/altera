@@ -70,38 +70,34 @@ class AppColors {
   static const Color categoryOther = Color(0xFF6B7280);
 
   // --- DARK TEMA MaterialColor SWATCH ---
-  static const MaterialColor primarySwatch = MaterialColor(
-    0xFF0A1628,
-    <int, Color>{
-      50: Color(0xFFE3E7EE),
-      100: Color(0xFFB9C3D4),
-      200: Color(0xFF8B9CB8),
-      300: Color(0xFF5C749C),
-      400: Color(0xFF395686),
-      500: Color(0xFF0A1628),
-      600: Color(0xFF091324),
-      700: Color(0xFF07101E),
-      800: Color(0xFF050D18),
-      900: Color(0xFF03070F),
-    },
-  );
+  static const MaterialColor primarySwatch =
+      MaterialColor(0xFF0A1628, <int, Color>{
+        50: Color(0xFFE3E7EE),
+        100: Color(0xFFB9C3D4),
+        200: Color(0xFF8B9CB8),
+        300: Color(0xFF5C749C),
+        400: Color(0xFF395686),
+        500: Color(0xFF0A1628),
+        600: Color(0xFF091324),
+        700: Color(0xFF07101E),
+        800: Color(0xFF050D18),
+        900: Color(0xFF03070F),
+      });
 
   // --- ACCENT MaterialColor SWATCH ---
-  static const MaterialColor accentSwatch = MaterialColor(
-    0xFF00D4FF,
-    <int, Color>{
-      50: Color(0xFFE0FAFF),
-      100: Color(0xFFB3F3FF),
-      200: Color(0xFF80ECFF),
-      300: Color(0xFF4DE4FF),
-      400: Color(0xFF26DEFF),
-      500: Color(0xFF00D4FF),
-      600: Color(0xFF00C2EF),
-      700: Color(0xFF00AADB),
-      800: Color(0xFF0093C8),
-      900: Color(0xFF006FA7),
-    },
-  );
+  static const MaterialColor accentSwatch =
+      MaterialColor(0xFF00D4FF, <int, Color>{
+        50: Color(0xFFE0FAFF),
+        100: Color(0xFFB3F3FF),
+        200: Color(0xFF80ECFF),
+        300: Color(0xFF4DE4FF),
+        400: Color(0xFF26DEFF),
+        500: Color(0xFF00D4FF),
+        600: Color(0xFF00C2EF),
+        700: Color(0xFF00AADB),
+        800: Color(0xFF0093C8),
+        900: Color(0xFF006FA7),
+      });
 
   /// Gradient - dashboard header için
   static const LinearGradient primaryGradient = LinearGradient(

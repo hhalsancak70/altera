@@ -18,6 +18,11 @@ class CycleAlreadyDone extends CycleCheckResult {
   const CycleAlreadyDone();
 }
 
+/// Arşivlenecek ayda işlem yoktu — arşiv oluşturulmadı
+class CycleSkipped extends CycleCheckResult {
+  const CycleSkipped();
+}
+
 /// Döngü günü henüz gelmedi
 class CycleNotYet extends CycleCheckResult {
   final DateTime nextCycleDate;
@@ -51,8 +56,8 @@ class CycleService {
   CycleService({
     required DbHelper db,
     required NotificationService notifications,
-  })  : _db = db,
-        _notifications = notifications;
+  }) : _db = db,
+       _notifications = notifications;
 
   /// Kullanıcının seçtiği aylık döngü günü (1-28)
   int get cycleDay {
@@ -79,16 +84,15 @@ class CycleService {
     if (lastArchivedStr != null) {
       final lastArchived = DateTime.parse(lastArchivedStr);
       // Bu ay zaten arşivlendi mi?
-      if (lastArchived.year == today.year && lastArchived.month == today.month) {
+      if (lastArchived.year == today.year &&
+          lastArchived.month == today.month) {
         return const CycleAlreadyDone();
       }
     }
 
     // Döngü günü geldi mi?
     if (today.day < day) {
-      return CycleNotYet(
-        nextCycleDate: DateTime(today.year, today.month, day),
-      );
+      return CycleNotYet(nextCycleDate: DateTime(today.year, today.month, day));
     }
 
     // Arşivleme zamanı geldi
@@ -96,27 +100,38 @@ class CycleService {
   }
 
   /// Geçen ayın verilerini arşivler ve yeni aya hazırlanır.
-  Future<CycleCompleted> _archiveAndReset(DateTime now) async {
+  Future<CycleCheckResult> _archiveAndReset(DateTime now) async {
     // Arşivlenecek ay: bir önceki ay
-    final archiveMonth = now.month == 1
-        ? DateTime(now.year - 1, 12)
-        : DateTime(now.year, now.month - 1);
+    final archiveMonth =
+        now.month == 1
+            ? DateTime(now.year - 1, 12)
+            : DateTime(now.year, now.month - 1);
 
     // Zaten arşivlenmiş mi?
-    final exists =
-        await _db.monthlyArchiveExists(archiveMonth.year, archiveMonth.month);
+    final exists = await _db.monthlyArchiveExists(
+      archiveMonth.year,
+      archiveMonth.month,
+    );
     if (exists) {
       // Arşiv var ama Hive'da işaretlenmemiş — düzelt
       await _markArchived(now);
       final archives = await _db.getMonthlyArchives();
       final map = archives.firstWhere(
-        (m) => m['year'] == archiveMonth.year && m['month'] == archiveMonth.month,
+        (m) =>
+            m['year'] == archiveMonth.year && m['month'] == archiveMonth.month,
       );
       return CycleCompleted(archive: MonthlyArchive.fromDbMap(map));
     }
 
     // Geçen ayın işlemlerini topla
     final transactions = await _db.getTransactionsForMonth(archiveMonth);
+
+    // İşlem yoksa boş arşiv oluşturma — sadece döngüyü tamamlandı olarak işaretle
+    if (transactions.isEmpty) {
+      await _markArchived(now);
+      return const CycleSkipped();
+    }
+
     final income = transactions
         .where((t) => t.amount > 0)
         .fold(0.0, (s, t) => s + t.amount);
@@ -136,9 +151,10 @@ class CycleService {
     // En çok harcanan kategori
     String? topCategory;
     if (categorySpending.isNotEmpty) {
-      topCategory = categorySpending.entries
-          .reduce((a, b) => a.value > b.value ? a : b)
-          .key;
+      topCategory =
+          categorySpending.entries
+              .reduce((a, b) => a.value > b.value ? a : b)
+              .key;
     }
 
     final archive = MonthlyArchive(
@@ -169,9 +185,8 @@ class CycleService {
       await _notifications.showMonthlySummary(
         month: archiveMonth,
         totalSavings: income - expense,
-        topCategory: topCategory != null
-            ? _categoryDisplayName(topCategory)
-            : null,
+        topCategory:
+            topCategory != null ? _categoryDisplayName(topCategory) : null,
       );
     } catch (_) {
       // Bildirim başarısız olursa arşivleme yine de tamamlandı

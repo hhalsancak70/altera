@@ -183,36 +183,35 @@ class Transaction {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'description': description,
-        'amount': amount,
-        'date': date.toIso8601String(),
-        'category': category.name,
-        'type': type.name,
-        'aiReason': aiReason,
-        'isAnalyzed': isAnalyzed ? 1 : 0,
-        'source': source,
-        'createdAt': createdAt.toIso8601String(),
-      };
+    'id': id,
+    'description': description,
+    'amount': amount,
+    'date': date.toIso8601String(),
+    'category': category.name,
+    'type': type.name,
+    'aiReason': aiReason,
+    'isAnalyzed': isAnalyzed ? 1 : 0,
+    'source': source,
+    'createdAt': createdAt.toIso8601String(),
+  };
 
   factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
-        id: json['id'] as String,
-        description: json['description'] as String,
-        amount: (json['amount'] as num).toDouble(),
-        date: DateTime.parse(json['date'] as String),
-        category: TransactionCategory.values.byName(
-          json['category'] as String? ?? 'other',
-        ),
-        type: TransactionType.values.byName(
-          json['type'] as String? ?? 'need',
-        ),
-        aiReason: json['aiReason'] as String?,
-        isAnalyzed: (json['isAnalyzed'] as int? ?? 0) == 1,
-        source: json['source'] as String? ?? 'bank_mock',
-        createdAt: json['createdAt'] != null
+    id: json['id'] as String,
+    description: json['description'] as String,
+    amount: (json['amount'] as num).toDouble(),
+    date: DateTime.parse(json['date'] as String),
+    category: TransactionCategory.values.byName(
+      json['category'] as String? ?? 'other',
+    ),
+    type: TransactionType.values.byName(json['type'] as String? ?? 'need'),
+    aiReason: json['aiReason'] as String?,
+    isAnalyzed: (json['isAnalyzed'] as int? ?? 0) == 1,
+    source: json['source'] as String? ?? 'bank_mock',
+    createdAt:
+        json['createdAt'] != null
             ? DateTime.parse(json['createdAt'] as String)
             : DateTime.now(),
-      );
+  );
 
   @override
   bool operator ==(Object other) =>

@@ -35,9 +35,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           IconButton(
             icon: Icon(
               Icons.filter_list,
-              color: _selectedCategory != null || _showUnanalyzedOnly
-                  ? AppColors.accent
-                  : AppColors.textSecondary,
+              color:
+                  _selectedCategory != null || _showUnanalyzedOnly
+                      ? AppColors.accent
+                      : AppColors.textSecondary,
             ),
             onPressed: _showFilterSheet,
           ),
@@ -60,13 +61,20 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'İşlem ara...',
-                prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, color: AppColors.textSecondary),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                      )
-                    : null,
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon:
+                    _searchQuery.isNotEmpty
+                        ? IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () => setState(() => _searchQuery = ''),
+                        )
+                        : null,
               ),
             ),
           ),
@@ -86,8 +94,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   if (_showUnanalyzedOnly)
                     _FilterChip(
                       label: 'Analiz Bekliyor',
-                      onRemove: () =>
-                          setState(() => _showUnanalyzedOnly = false),
+                      onRemove:
+                          () => setState(() => _showUnanalyzedOnly = false),
                     ),
                 ],
               ),
@@ -130,18 +138,20 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   },
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.accent,
-                ),
-              ),
-              error: (_, __) => const Center(
-                child: Text(
-                  'İşlemler yüklenemedi',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              ),
+              loading:
+                  () => const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
+              error:
+                  (_, __) => const Center(
+                    child: Text(
+                      'İşlemler yüklenemedi',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
             ),
           ),
         ],
@@ -152,9 +162,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   Future<void> _openAddScreen(BuildContext context) async {
     final result = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => const AddEditTransactionScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const AddEditTransactionScreen()),
     );
     if (result == true) {
       ref.invalidate(allTransactionsProvider);
@@ -176,36 +184,42 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   Future<bool?> _confirmDelete(BuildContext context, Transaction tx) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('İşlemi Sil', style: TextStyle(color: AppColors.textPrimary)),
-        content: Text(
-          '"${tx.description}" işlemi kalıcı olarak silinecek.',
-          style: const TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('İptal'),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'İşlemi Sil',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: Text(
+              '"${tx.description}" işlemi kalıcı olarak silinecek.',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('İptal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                child: const Text('Sil'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
     );
   }
 
   void _deleteTransaction(Transaction tx) {
+    // Messenger'ı async gap öncesinde yakala
+    final messenger = ScaffoldMessenger.of(context);
     final repo = ref.read(transactionRepositoryProvider);
     repo.deleteTransaction(tx.id).then((_) {
       ref.invalidate(allTransactionsProvider);
       ref.invalidate(monthlySpendingProvider);
       ref.invalidate(monthlySummaryProvider);
       // Undo snackbar
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: const Text('İşlem silindi'),
           behavior: SnackBarBehavior.floating,
@@ -238,9 +252,14 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         children: [
           Icon(icon, color: Colors.white, size: 22),
           const SizedBox(height: 4),
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -267,81 +286,95 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Filtrele',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Kategori',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: TransactionCategory.values.map((cat) {
-                final isSelected = _selectedCategory == cat;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedCategory = isSelected ? null : cat;
-                    });
+      builder:
+          (ctx) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Filtrele',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Kategori',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children:
+                      TransactionCategory.values.map((cat) {
+                        final isSelected = _selectedCategory == cat;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory = isSelected ? null : cat;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  isSelected
+                                      ? AppColors.accent.withValues(alpha: 0.2)
+                                      : AppColors.surfaceLight,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color:
+                                    isSelected
+                                        ? AppColors.accent
+                                        : Colors.transparent,
+                              ),
+                            ),
+                            child: Text(
+                              '${cat.emoji} ${cat.displayNameTr}',
+                              style: TextStyle(
+                                color:
+                                    isSelected
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  value: _showUnanalyzedOnly,
+                  onChanged: (v) {
+                    setState(() => _showUnanalyzedOnly = v);
                     Navigator.pop(ctx);
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.accent.withOpacity(0.2)
-                          : AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.accent
-                            : Colors.transparent,
-                      ),
-                    ),
-                    child: Text(
-                      '${cat.emoji} ${cat.displayNameTr}',
-                      style: TextStyle(
-                        color: isSelected
-                            ? AppColors.accent
-                            : AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
+                  title: const Text(
+                    'Yalnızca analiz bekleyenler',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
                     ),
                   ),
-                );
-              }).toList(),
+                  activeTrackColor: AppColors.accent,
+                  activeThumbColor: AppColors.accent,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              value: _showUnanalyzedOnly,
-              onChanged: (v) {
-                setState(() => _showUnanalyzedOnly = v);
-                Navigator.pop(ctx);
-              },
-              title: const Text(
-                'Yalnızca analiz bekleyenler',
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-              ),
-              activeColor: AppColors.accent,
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }
@@ -358,9 +391,9 @@ class _FilterChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.accent.withOpacity(0.15),
+        color: AppColors.accent.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.accent.withOpacity(0.4)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

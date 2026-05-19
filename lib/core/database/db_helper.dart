@@ -1,6 +1,7 @@
 // ALTERA SQLite veritabanı yöneticisi - tüm kalıcı veri burada
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' hide Transaction;
 import 'package:path/path.dart';
@@ -49,9 +50,13 @@ class DbHelper {
         onUpgrade: _onUpgrade,
       );
     } catch (e) {
-      // Şifresiz (eski) DB varsa silinip şifreli yeniden oluşturulur.
-      // "SQL logic error" SQLCipher'ın yanlış/eksik anahtar mesajıdır.
-      if (e.toString().contains('SQL logic error')) {
+      // "SQL logic error" = SQLCipher yanlış/eksik anahtar mesajı.
+      // Sadece debug modunda otomatik sil (geliştirme kolaylığı).
+      // Production'da veri kaybı riskine karşı otomatik silme yapılmaz.
+      if (e.toString().contains('SQL logic error') && kDebugMode) {
+        debugPrint(
+          '[DbHelper] SQL logic error — debug modunda DB siliniyor: $e',
+        );
         await deleteDatabase(path);
         return openDatabase(
           path,
@@ -61,6 +66,7 @@ class DbHelper {
           onUpgrade: _onUpgrade,
         );
       }
+      debugPrint('[DbHelper] Veritabanı açılamadı: $e');
       rethrow;
     }
   }
@@ -110,6 +116,17 @@ class DbHelper {
         )
       ''');
     }
+    if (oldVersion < 3) {
+      // v3: duplicate tespiti için deterministic fingerprint kolonu
+      await db.execute(
+        'ALTER TABLE transactions ADD COLUMN transaction_fingerprint TEXT',
+      );
+      await db.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_fingerprint
+        ON transactions(transaction_fingerprint)
+        WHERE transaction_fingerprint IS NOT NULL
+      ''');
+    }
   }
 
   /// Veritabanı ilk kez oluşturulduğunda çağrılır
@@ -126,7 +143,8 @@ class DbHelper {
         ai_reason TEXT,
         is_analyzed INTEGER NOT NULL DEFAULT 0,
         source TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        transaction_fingerprint TEXT
       )
     ''');
 
@@ -189,6 +207,13 @@ class DbHelper {
     // İşlem tarihi için index - filtrelemede performans
     await db.execute('CREATE INDEX idx_tx_date ON transactions(date)');
 
+    // Duplicate tespiti için fingerprint unique index
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_fingerprint
+      ON transactions(transaction_fingerprint)
+      WHERE transaction_fingerprint IS NOT NULL
+    ''');
+
     // Ajan log timestamp index - son kayıtlara hızlı erişim
     await db.execute('CREATE INDEX idx_log_ts ON agent_logs(timestamp)');
   }
@@ -197,10 +222,11 @@ class DbHelper {
   // TRANSACTION CRUD
   // ─────────────────────────────────────────────────────────────
 
-  /// Yeni işlem ekler - duplicate durumunda sessizce atlar
-  Future<void> insertTransaction(Transaction tx) async {
+  /// Yeni işlem ekler - duplicate durumunda sessizce atlar (true = eklendi, false = duplicate)
+  Future<bool> insertTransaction(Transaction tx) async {
     final db = await database;
-    await db.insert(
+    final fp = buildFingerprint(tx.date, tx.amount, tx.description, tx.type);
+    final rowId = await db.insert(
       'transactions',
       {
         'id': tx.id,
@@ -213,9 +239,26 @@ class DbHelper {
         'is_analyzed': tx.isAnalyzed ? 1 : 0,
         'source': tx.source,
         'created_at': tx.createdAt.toIso8601String(),
+        'transaction_fingerprint': fp,
       },
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
+    return rowId != -1;
+  }
+
+  /// Deterministic fingerprint üretir — DB ve Dart tarafı birebir aynı.
+  /// Format: YYYY-MM-DD|amount_2dp|normalized_desc|type
+  static String buildFingerprint(
+    DateTime date,
+    double amount,
+    String description,
+    TransactionType type,
+  ) {
+    final d =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final a = amount.toStringAsFixed(2);
+    final s = description.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+    return '$d|$a|$s|${type.name}';
   }
 
   /// İşlemleri listeler - opsiyonel tarih ve kategori filtresi
@@ -333,18 +376,48 @@ class DbHelper {
     return result.isNotEmpty;
   }
 
-  Transaction _txFromMap(Map<String, dynamic> map) => Transaction(
-        id: map['id'] as String,
-        description: map['description'] as String,
-        amount: map['amount'] as double,
-        date: DateTime.parse(map['date'] as String),
-        category: TransactionCategory.values.byName(map['category'] as String),
-        type: TransactionType.values.byName(map['type'] as String),
-        aiReason: map['ai_reason'] as String?,
-        isAnalyzed: (map['is_analyzed'] as int) == 1,
-        source: map['source'] as String,
-        createdAt: DateTime.parse(map['created_at'] as String),
-      );
+  /// Aynı fingerprint'in DB'de var olup olmadığını kontrol eder.
+  /// Unique index üzerinden O(1) kontrol — asıl duplicate garantisi.
+  Future<bool> transactionFingerprintExists(String fingerprint) async {
+    final db = await database;
+    final result = await db.query(
+      'transactions',
+      columns: ['id'],
+      where: 'transaction_fingerprint = ?',
+      whereArgs: [fingerprint],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Transaction _txFromMap(Map<String, dynamic> map) {
+    TransactionCategory category;
+    try {
+      category = TransactionCategory.values.byName(map['category'] as String);
+    } catch (_) {
+      category = TransactionCategory.other;
+    }
+
+    TransactionType type;
+    try {
+      type = TransactionType.values.byName(map['type'] as String);
+    } catch (_) {
+      type = TransactionType.need;
+    }
+
+    return Transaction(
+      id: map['id'] as String,
+      description: map['description'] as String,
+      amount: (map['amount'] as num).toDouble(),
+      date: DateTime.parse(map['date'] as String),
+      category: category,
+      type: type,
+      aiReason: map['ai_reason'] as String?,
+      isAnalyzed: (map['is_analyzed'] as int? ?? 0) == 1,
+      source: map['source'] as String,
+      createdAt: DateTime.parse(map['created_at'] as String),
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────
   // BUDGET CRUD
@@ -355,23 +428,18 @@ class DbHelper {
     final db = await database;
     final monthStr =
         '${budget.month.year}-${budget.month.month.toString().padLeft(2, '0')}';
-    await db.insert(
-      'budgets',
-      {
-        'id': budget.id,
-        'category': budget.category.name,
-        'limit_amount': budget.limitAmount,
-        'month': monthStr,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await db.insert('budgets', {
+      'id': budget.id,
+      'category': budget.category.name,
+      'limit_amount': budget.limitAmount,
+      'month': monthStr,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   /// Belirtilen ay için bütçeleri döndürür (harcama miktarı hesaplanır)
   Future<List<Budget>> getBudgetsForMonth(DateTime month) async {
     final db = await database;
-    final monthStr =
-        '${month.year}-${month.month.toString().padLeft(2, '0')}';
+    final monthStr = '${month.year}-${month.month.toString().padLeft(2, '0')}';
 
     final budgetMaps = await db.query(
       'budgets',
@@ -382,16 +450,20 @@ class DbHelper {
     // Her bütçe için o aydaki harcamayı hesapla
     final budgets = <Budget>[];
     for (final map in budgetMaps) {
-      final category = TransactionCategory.values.byName(map['category'] as String);
+      final category = TransactionCategory.values.byName(
+        map['category'] as String,
+      );
       final spent = await _getMonthlySpent(category, month);
 
-      budgets.add(Budget(
-        id: map['id'] as String,
-        category: category,
-        limitAmount: map['limit_amount'] as double,
-        spentAmount: spent,
-        month: month,
-      ));
+      budgets.add(
+        Budget(
+          id: map['id'] as String,
+          category: category,
+          limitAmount: (map['limit_amount'] as num).toDouble(),
+          spentAmount: spent,
+          month: month,
+        ),
+      );
     }
 
     return budgets;
@@ -501,7 +573,9 @@ class DbHelper {
   }
 
   /// Yatırım geçmişini döndürür
-  Future<List<Map<String, dynamic>>> getInvestmentHistory({int limit = 20}) async {
+  Future<List<Map<String, dynamic>>> getInvestmentHistory({
+    int limit = 20,
+  }) async {
     final db = await database;
     return db.query('investment_records', orderBy: 'date DESC', limit: limit);
   }
@@ -512,22 +586,28 @@ class DbHelper {
 
   /// Belirli ay için kategori bazlı gider toplamları
   Future<Map<TransactionCategory, double>> getMonthlySpendingByCategory(
-      DateTime month) async {
+    DateTime month,
+  ) async {
     final db = await database;
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
 
-    final maps = await db.rawQuery('''
+    final maps = await db.rawQuery(
+      '''
       SELECT category, SUM(ABS(amount)) as total
       FROM transactions
       WHERE date >= ? AND date < ? AND amount < 0
       GROUP BY category
-    ''', [start.toIso8601String(), end.toIso8601String()]);
+    ''',
+      [start.toIso8601String(), end.toIso8601String()],
+    );
 
     final result = <TransactionCategory, double>{};
     for (final map in maps) {
       try {
-        final category = TransactionCategory.values.byName(map['category'] as String);
+        final category = TransactionCategory.values.byName(
+          map['category'] as String,
+        );
         result[category] = (map['total'] as num).toDouble();
       } catch (_) {
         // Geçersiz kategori adı - atla
@@ -538,16 +618,21 @@ class DbHelper {
 
   /// Belirli ay ve kategori için toplam gider
   Future<double> _getMonthlySpent(
-      TransactionCategory category, DateTime month) async {
+    TransactionCategory category,
+    DateTime month,
+  ) async {
     final db = await database;
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
 
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(ABS(amount)) as total
       FROM transactions
       WHERE category = ? AND date >= ? AND date < ? AND amount < 0
-    ''', [category.name, start.toIso8601String(), end.toIso8601String()]);
+    ''',
+      [category.name, start.toIso8601String(), end.toIso8601String()],
+    );
 
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -558,11 +643,14 @@ class DbHelper {
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
 
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(amount) as total
       FROM transactions
       WHERE date >= ? AND date < ? AND amount > 0
-    ''', [start.toIso8601String(), end.toIso8601String()]);
+    ''',
+      [start.toIso8601String(), end.toIso8601String()],
+    );
 
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
@@ -573,28 +661,35 @@ class DbHelper {
     final start = DateTime(month.year, month.month, 1);
     final end = DateTime(month.year, month.month + 1, 1);
 
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT SUM(ABS(amount)) as total
       FROM transactions
       WHERE date >= ? AND date < ? AND amount < 0
-    ''', [start.toIso8601String(), end.toIso8601String()]);
+    ''',
+      [start.toIso8601String(), end.toIso8601String()],
+    );
 
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
   /// Bu haftaki ve geçen haftaki gider toplamını karşılaştırır
-  Future<({double thisWeek, double lastWeek})> getWeeklySpendingComparison() async {
+  Future<({double thisWeek, double lastWeek})>
+  getWeeklySpendingComparison() async {
     final db = await database;
     final now = DateTime.now();
     final thisWeekStart = now.subtract(Duration(days: now.weekday - 1));
     final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
 
     Future<double> weeklySpend(DateTime from, DateTime to) async {
-      final result = await db.rawQuery('''
+      final result = await db.rawQuery(
+        '''
         SELECT SUM(ABS(amount)) as total
         FROM transactions
         WHERE date >= ? AND date < ? AND amount < 0
-      ''', [from.toIso8601String(), to.toIso8601String()]);
+      ''',
+        [from.toIso8601String(), to.toIso8601String()],
+      );
       return (result.first['total'] as num?)?.toDouble() ?? 0.0;
     }
 
@@ -621,10 +716,7 @@ class DbHelper {
   /// Tüm arşivleri döndürür (en yeni başta)
   Future<List<Map<String, dynamic>>> getMonthlyArchives() async {
     final db = await database;
-    return db.query(
-      'monthly_archives',
-      orderBy: 'year DESC, month DESC',
-    );
+    return db.query('monthly_archives', orderBy: 'year DESC, month DESC');
   }
 
   /// Belirli yıl-ay için arşiv kaydı var mı?

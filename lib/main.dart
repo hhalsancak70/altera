@@ -5,10 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+import 'core/constants/app_constants.dart';
 import 'core/database/hive_boxes.dart';
 import 'core/providers.dart';
 import 'core/services/notification_service.dart';
+import 'l10n/app_localizations.dart';
 import 'features/archive/archive_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/import/import_screen.dart';
@@ -50,17 +53,23 @@ void main() async {
 
   await initHive();
   await NotificationService.initialize();
+  // Android 13+ için bildirim izni iste; kullanıcı reddederse sessizce devam et
+  await NotificationService.requestPermissionIfNeeded();
 
-  runApp(
-    const ProviderScope(
-      child: AlteraApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: AlteraApp()));
 }
 
 /// GoRouter yapılandırması
 final _router = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    final box = Hive.box<String>(HiveBoxes.userProfile);
+    final profileJson = box.get(AppConstants.kHiveKeyUserProfile);
+    final isOnboarding = state.uri.path == '/onboarding';
+    if (profileJson == null && !isOnboarding) return '/onboarding';
+    if (profileJson != null && isOnboarding) return '/';
+    return null;
+  },
   routes: [
     // Ana scaffold - BottomNav ile
     ShellRoute(
@@ -98,10 +107,7 @@ final _router = GoRouter(
       path: '/onboarding',
       builder: (context, state) => const OnboardingScreen(),
     ),
-    GoRoute(
-      path: '/import',
-      builder: (context, state) => const ImportScreen(),
-    ),
+    GoRoute(path: '/import', builder: (context, state) => const ImportScreen()),
     GoRoute(
       path: '/archive',
       builder: (context, state) => const ArchiveScreen(),
@@ -122,15 +128,8 @@ class AlteraApp extends StatelessWidget {
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark, // Dark mode varsayılan
       routerConfig: _router,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('tr', 'TR'),
-        Locale('en', 'US'),
-      ],
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       locale: const Locale('tr', 'TR'),
     );
   }

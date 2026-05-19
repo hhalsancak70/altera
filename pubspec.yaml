@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Lokalizasyon desteği (TR + EN)
+  # Kısmi Türkçe UI yerelleştirme (GlobalMaterialLocalizations - TR + EN tarih/sayı formatları)
   flutter_localizations:
     sdk: flutter
 
@@ -56,7 +56,7 @@ dependencies:
   # UUID üretimi (transaction ve log ID'leri için)
   uuid: ^4.4.0
 
-  # Dosya seçici (PDF + Excel içe aktarma)
+  # Dosya seçici (Excel içe aktarma, .xlsx)
   file_picker: ^8.1.2
 
   # Excel dosyası parse (yerel, sunucuya gönderilmez)

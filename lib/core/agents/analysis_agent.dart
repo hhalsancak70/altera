@@ -42,32 +42,50 @@ class AnalysisAgent {
   final DbHelper _dbHelper;
 
   /// Gemini API çağrıları arası bekleme süresi (ms) - rate limit aşımını önler
-  static const int _kDelayBetweenRequestsMs =
-      AppConstants.kAnalysisDelayMs;
+  static const int _kDelayBetweenRequestsMs = AppConstants.kAnalysisDelayMs;
 
   /// Bir döngüde maksimum analiz edilecek işlem sayısı
   static const int _kMaxTransactionsPerCycle =
       AppConstants.kMaxTransactionsPerCycle;
 
-  AnalysisAgent({
-    required GeminiService gemini,
-    required DbHelper dbHelper,
-  })  : _gemini = gemini,
-        _dbHelper = dbHelper;
+  AnalysisAgent({required GeminiService gemini, required DbHelper dbHelper})
+    : _gemini = gemini,
+      _dbHelper = dbHelper;
 
   /// Ajan çalışma döngüsü
   Future<AnalysisResult> run({
     required void Function(String agent, String message, LogLevel level)
-        logCallback,
+    logCallback,
   }) async {
     final stopwatch = Stopwatch()..start();
 
+    // Gemini disabled ise AI analizi yapılamaz; sessizce dön
+    if (!_gemini.isEnabled) {
+      logCallback(
+        'analysis',
+        'Gemini API key yok; AI analizleri bekletiliyor.',
+        LogLevel.info,
+      );
+      stopwatch.stop();
+      return AnalysisResult(
+        analyzedCount: 0,
+        failedCount: 0,
+        categoryDistribution: {},
+        durationMs: stopwatch.elapsedMilliseconds,
+      );
+    }
+
     // Adım 1: Analiz edilmemiş işlemleri çek
-    final unanalyzed = await _dbHelper
-        .getUnanalyzedTransactions(limit: _kMaxTransactionsPerCycle);
+    final unanalyzed = await _dbHelper.getUnanalyzedTransactions(
+      limit: _kMaxTransactionsPerCycle,
+    );
 
     if (unanalyzed.isEmpty) {
-      logCallback('analysis', 'Analiz bekleyen işlem yok, atlanıyor', LogLevel.info);
+      logCallback(
+        'analysis',
+        'Analiz bekleyen işlem yok, atlanıyor',
+        LogLevel.info,
+      );
       stopwatch.stop();
       return AnalysisResult(
         analyzedCount: 0,
@@ -91,9 +109,10 @@ class AnalysisAgent {
     for (var i = 0; i < unanalyzed.length; i++) {
       final tx = unanalyzed[i];
 
-      final shortDesc = tx.description.length > 25
-          ? '${tx.description.substring(0, 25)}…'
-          : tx.description;
+      final shortDesc =
+          tx.description.length > 25
+              ? '${tx.description.substring(0, 25)}…'
+              : tx.description;
 
       logCallback(
         'analysis',
@@ -121,16 +140,18 @@ class AnalysisAgent {
         logCallback(
           'analysis',
           '  → Kategori: ${analysis.category.displayNameTr} | '
-          'Tür: ${analysis.type.name} | '
-          'Süre: ${analysis.durationMs}ms',
+              'Tür: ${analysis.type.name} | '
+              'Süre: ${analysis.durationMs}ms',
           LogLevel.success,
         );
       } catch (e) {
         failedCount++;
-        final errMsg = e is GeminiException
-            ? e.message
-            : e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
-        final short = errMsg.length > 80 ? '${errMsg.substring(0, 80)}…' : errMsg;
+        final errMsg =
+            e is GeminiException
+                ? e.message
+                : e.toString().replaceAll(RegExp(r'https?://\S+'), '').trim();
+        final short =
+            errMsg.length > 80 ? '${errMsg.substring(0, 80)}…' : errMsg;
         logCallback(
           'analysis',
           '"${tx.description.length > 20 ? '${tx.description.substring(0, 20)}…' : tx.description}" analiz edilemedi: $short',
@@ -142,21 +163,21 @@ class AnalysisAgent {
           logCallback(
             'analysis',
             'API kota/rate limit aşıldı. Kalan ${unanalyzed.length - i - 1} işlem sonraki döngüde analiz edilecek. '
-            '${AppConstants.kRateLimitDelayMs ~/ 1000}s bekleniyor...',
+                '${AppConstants.kRateLimitDelayMs ~/ 1000}s bekleniyor...',
             LogLevel.warning,
           );
           // Orchestrator'ın hemen tekrar denememesi için burada bekliyoruz.
           // Bu sayede bir sonraki cycle başladığında rate limit penceresi geçmiş olur.
           await Future.delayed(
-              Duration(milliseconds: AppConstants.kRateLimitDelayMs));
+            Duration(milliseconds: AppConstants.kRateLimitDelayMs),
+          );
           break;
         }
       }
 
       // Rate limit aşımını önlemek için bekleme
       if (i < unanalyzed.length - 1) {
-        await Future.delayed(
-            Duration(milliseconds: _kDelayBetweenRequestsMs));
+        await Future.delayed(Duration(milliseconds: _kDelayBetweenRequestsMs));
       }
     }
 
@@ -166,14 +187,19 @@ class AnalysisAgent {
       final distSummary = distribution.entries
           .map((e) => '${e.key.displayNameTr}: ${e.value}')
           .join(' | ');
-      logCallback('analysis', 'Kategori dağılımı → $distSummary', LogLevel.info);
+      logCallback(
+        'analysis',
+        'Kategori dağılımı → $distSummary',
+        LogLevel.info,
+      );
     }
 
-    final summary = analyzedCount > 0
-        ? '$analyzedCount işlem başarıyla kategorize edildi'
-            '${failedCount > 0 ? ', $failedCount işlem başarısız' : ''}'
-            ' — toplam ${stopwatch.elapsedMilliseconds}ms'
-        : 'Hiçbir işlem analiz edilemedi${failedCount > 0 ? ' ($failedCount hata)' : ''}';
+    final summary =
+        analyzedCount > 0
+            ? '$analyzedCount işlem başarıyla kategorize edildi'
+                '${failedCount > 0 ? ', $failedCount işlem başarısız' : ''}'
+                ' — toplam ${stopwatch.elapsedMilliseconds}ms'
+            : 'Hiçbir işlem analiz edilemedi${failedCount > 0 ? ' ($failedCount hata)' : ''}';
 
     logCallback(
       'analysis',

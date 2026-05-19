@@ -61,7 +61,10 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.delete_outline,
+              color: AppColors.textSecondary,
+            ),
             onPressed: () => _clearLogs(context),
             tooltip: 'Logları temizle',
           ),
@@ -85,15 +88,17 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
                   onTap: () => setState(() => _selectedAgent = null),
                 ),
                 const SizedBox(width: 8),
-                ...AgentType.values.map((a) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _AgentChip(
-                        label: a.displayNameTr,
-                        isSelected: _selectedAgent == a,
-                        onTap: () => setState(() => _selectedAgent = a),
-                        isGemini: a == AgentType.analysis,
-                      ),
-                    )),
+                ...AgentType.values.map(
+                  (a) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _AgentChip(
+                      label: a.displayNameTr,
+                      isSelected: _selectedAgent == a,
+                      onTap: () => setState(() => _selectedAgent = a),
+                      isGemini: a == AgentType.analysis,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -102,9 +107,10 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
           Expanded(
             child: logsAsync.when(
               data: (logs) {
-                final filtered = _selectedAgent == null
-                    ? logs
-                    : logs.where((l) => l.agent == _selectedAgent).toList();
+                final filtered =
+                    _selectedAgent == null
+                        ? logs
+                        : logs.where((l) => l.agent == _selectedAgent).toList();
 
                 if (filtered.isEmpty) {
                   return Center(
@@ -126,11 +132,13 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton.icon(
-                          onPressed: orchestratorState.isRunning
-                              ? null
-                              : () => ref
-                                  .read(orchestratorProvider.notifier)
-                                  .runOnce(),
+                          onPressed:
+                              orchestratorState.isRunning
+                                  ? null
+                                  : () =>
+                                      ref
+                                          .read(orchestratorProvider.notifier)
+                                          .runOnce(),
                           icon: const Icon(Icons.play_arrow),
                           label: const Text('Döngüyü Başlat'),
                         ),
@@ -140,30 +148,32 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
                 }
 
                 return RefreshIndicator(
-                  onRefresh: () async =>
-                      ref.invalidate(recentAgentLogsProvider),
+                  onRefresh:
+                      () async => ref.invalidate(recentAgentLogsProvider),
                   color: AppColors.accent,
                   backgroundColor: AppColors.surface,
                   child: ListView.builder(
                     padding: const EdgeInsets.only(bottom: 24),
                     itemCount: filtered.length,
-                    itemBuilder: (context, i) =>
-                        LogEntryCard(entry: filtered[i]),
+                    itemBuilder:
+                        (context, i) => LogEntryCard(entry: filtered[i]),
                   ),
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.accent,
-                ),
-              ),
-              error: (_, __) => const Center(
-                child: Text(
-                  'Loglar yüklenemedi',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              ),
+              loading:
+                  () => const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
+              error:
+                  (_, __) => const Center(
+                    child: Text(
+                      'Loglar yüklenemedi',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
             ),
           ),
         ],
@@ -174,29 +184,31 @@ class _AgentLogScreenState extends ConsumerState<AgentLogScreen> {
   Future<void> _clearLogs(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
-          'Logları Temizle',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: const Text(
-          'Tüm ajan log kayıtları silinecek. Emin misin?',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('İptal'),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'Logları Temizle',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: const Text(
+              'Tüm ajan log kayıtları silinecek. Emin misin?',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                ),
+                child: const Text('Temizle'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.danger),
-            child: const Text('Temizle'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true) {
@@ -226,9 +238,10 @@ class _AgentChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.accent.withOpacity(0.2)
-              : AppColors.surfaceLight,
+          color:
+              isSelected
+                  ? AppColors.accent.withOpacity(0.2)
+                  : AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? AppColors.accent : Colors.transparent,
@@ -246,8 +259,7 @@ class _AgentChip extends StatelessWidget {
               style: TextStyle(
                 color: isSelected ? AppColors.accent : AppColors.textSecondary,
                 fontSize: 12,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.w400,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ],

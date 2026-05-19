@@ -38,10 +38,14 @@ class DataCollectionAgent {
   /// Returns: Analiz bekleyen işlem sayısı ve süre
   Future<DataCollectionResult> run({
     required void Function(String agent, String message, LogLevel level)
-        logCallback,
+    logCallback,
   }) async {
     final stopwatch = Stopwatch()..start();
-    logCallback('data_collection', 'Veri toplama ajanı başlatıldı', LogLevel.info);
+    logCallback(
+      'data_collection',
+      'Veri toplama ajanı başlatıldı',
+      LogLevel.info,
+    );
 
     try {
       // Tüm bu ayki işlemleri çek
@@ -74,9 +78,13 @@ class DataCollectionAgent {
           LogLevel.info,
         );
         // İlk birkaç işlemi listele
-        final preview = pending.take(3).map((t) =>
-          '"${t.description.length > 20 ? '${t.description.substring(0, 20)}…' : t.description}"'
-        ).join(', ');
+        final preview = pending
+            .take(3)
+            .map(
+              (t) =>
+                  '"${t.description.length > 20 ? '${t.description.substring(0, 20)}…' : t.description}"',
+            )
+            .join(', ');
         logCallback(
           'data_collection',
           'Kuyruktaki işlemler: $preview${pending.length > 3 ? ' ve ${pending.length - 3} diğeri' : ''}',

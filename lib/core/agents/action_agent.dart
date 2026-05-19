@@ -51,15 +51,15 @@ class ActionAgent {
     required GeminiService gemini,
     required NotificationService notifications,
     required InvestmentFundService fundService,
-  })  : _dbHelper = dbHelper,
-        _gemini = gemini,
-        _notifications = notifications,
-        _fundService = fundService;
+  }) : _dbHelper = dbHelper,
+       _gemini = gemini,
+       _notifications = notifications,
+       _fundService = fundService;
 
   /// Ajan çalışma döngüsü
   Future<ActionResult> run({
     required void Function(String agent, String message, LogLevel level)
-        logCallback,
+    logCallback,
   }) async {
     final stopwatch = Stopwatch()..start();
     final actions = <String>[];
@@ -68,11 +68,15 @@ class ActionAgent {
     logCallback('action', 'Aksiyon ajanı başlatıldı', LogLevel.info);
 
     // Kullanıcı profilini oku
-    final profileJson = Hive.box<String>(HiveBoxes.userProfile)
-        .get(AppConstants.kHiveKeyUserProfile);
-    final profile = profileJson != null
-        ? UserProfile.fromJson(jsonDecode(profileJson) as Map<String, dynamic>)
-        : UserProfile.defaults();
+    final profileJson = Hive.box<String>(
+      HiveBoxes.userProfile,
+    ).get(AppConstants.kHiveKeyUserProfile);
+    final profile =
+        profileJson != null
+            ? UserProfile.fromJson(
+              jsonDecode(profileJson) as Map<String, dynamic>,
+            )
+            : UserProfile.defaults();
 
     logCallback(
       'action',
@@ -86,16 +90,25 @@ class ActionAgent {
       final budgets = await _dbHelper.getBudgetsForMonth(now);
 
       if (budgets.isEmpty) {
-        logCallback('action', 'Bu ay için tanımlı bütçe bulunamadı', LogLevel.info);
+        logCallback(
+          'action',
+          'Bu ay için tanımlı bütçe bulunamadı',
+          LogLevel.info,
+        );
       } else {
-        logCallback('action', '${budgets.length} bütçe kategorisi inceleniyor', LogLevel.info);
+        logCallback(
+          'action',
+          '${budgets.length} bütçe kategorisi inceleniyor',
+          LogLevel.info,
+        );
       }
 
+      bool firstBudgetGeminiCall = true;
       for (final budget in budgets) {
         if (budget.limitAmount <= 0) continue;
 
         if (budget.status == BudgetStatus.danger) {
-          // Kritik: %100+ aşım
+          // Kritik: %100+ aşım — Gemini çağırmadan bildirim gönder
           await _notifications.showBudgetDanger(
             category: budget.category,
             overspentAmount: budget.overspentAmount,
@@ -106,12 +119,20 @@ class ActionAgent {
           actions.add(action);
           logCallback('action', action, LogLevel.warning);
         } else if (budget.status == BudgetStatus.warning) {
-          // Uyarı: %80-99 arası
+          // Uyarı: %80-99 arası — sadece ilk uyarı için Gemini çağır (etkinse)
           try {
-            final suggestion = await _gemini.generateBudgetAlert(
-              category: budget.category,
-              overspentAmount: budget.spentAmount - budget.limitAmount * 0.8,
-            );
+            String suggestion;
+            if (firstBudgetGeminiCall && _gemini.isEnabled) {
+              suggestion = await _gemini.generateBudgetAlert(
+                category: budget.category,
+                overspentAmount: budget.spentAmount - budget.limitAmount * 0.8,
+              );
+              firstBudgetGeminiCall = false;
+              // Bir sonraki olası Gemini çağrısından önce bekle
+              await Future.delayed(const Duration(seconds: 5));
+            } else {
+              suggestion = 'Bu kategoride harcamalarını gözden geçirmeyi dene.';
+            }
 
             await _notifications.showBudgetWarning(
               category: budget.category,
@@ -141,7 +162,7 @@ class ActionAgent {
     logCallback(
       'action',
       'Ay sonu yatırım kontrolü — bugün ayın ${now.day}. günü '
-      '(eşik: ${AppConstants.kMonthEndDayThreshold}. gün)',
+          '(eşik: ${AppConstants.kMonthEndDayThreshold}. gün)',
       LogLevel.info,
     );
     if (now.day >= AppConstants.kMonthEndDayThreshold) {
@@ -160,7 +181,7 @@ class ActionAgent {
           logCallback(
             'action',
             'Yatırım eşiği aşıldı (min ${AppConstants.kMinInvestmentAmount.toStringAsFixed(0)} TL). '
-            'Gemini\'den fon önerisi isteniyor...',
+                'Gemini\'den fon önerisi isteniyor...',
             LogLevel.info,
           );
           final funds = await _fundService.fetchInvestmentFunds();
@@ -213,7 +234,11 @@ class ActionAgent {
     }
 
     // ─── AKSİYON 3: HARCAMA ANOMALİSİ ───
-    logCallback('action', 'Haftalık harcama anomalisi taranıyor...', LogLevel.info);
+    logCallback(
+      'action',
+      'Haftalık harcama anomalisi taranıyor...',
+      LogLevel.info,
+    );
     try {
       final weeklyData = await _dbHelper.getWeeklySpendingComparison();
       final thisWeek = weeklyData.thisWeek;
@@ -222,27 +247,35 @@ class ActionAgent {
       logCallback(
         'action',
         'Bu hafta: ${thisWeek.toStringAsFixed(0)} TL | '
-        'Geçen hafta: ${lastWeek.toStringAsFixed(0)} TL',
+            'Geçen hafta: ${lastWeek.toStringAsFixed(0)} TL',
         LogLevel.info,
       );
 
       if (lastWeek > 0 && thisWeek > lastWeek * 1.5) {
         // %50+ artış anomali sayılır
-        final increasePercent =
-            ((thisWeek - lastWeek) / lastWeek * 100).toStringAsFixed(0);
+        final increasePercent = ((thisWeek - lastWeek) / lastWeek * 100)
+            .toStringAsFixed(0);
         final anomalyMsg =
             'Anomali tespit edildi! Bu hafta harcamalar geçen haftaya göre %$increasePercent arttı';
         actions.add(anomalyMsg);
         logCallback('action', anomalyMsg, LogLevel.warning);
       } else {
-        logCallback('action', 'Anomali yok, harcamalar normal seyrediyor', LogLevel.info);
+        logCallback(
+          'action',
+          'Anomali yok, harcamalar normal seyrediyor',
+          LogLevel.info,
+        );
       }
     } catch (e) {
       logCallback('action', 'Anomali kontrolü hatası: $e', LogLevel.error);
     }
 
     // ─── AKSİYON 4: PORTFÖY TAKİBİ ───
-    logCallback('action', 'Portföy fiyat değişimleri kontrol ediliyor...', LogLevel.info);
+    logCallback(
+      'action',
+      'Portföy fiyat değişimleri kontrol ediliyor...',
+      LogLevel.info,
+    );
     try {
       final prefs = await SharedPreferences.getInstance();
       final portfolioRaw = prefs.getString('altera_portfolio');
@@ -256,8 +289,12 @@ class ActionAgent {
         double usdRate = 1.0;
         try {
           final tryData = await fetchYahooQuote('TRY=X');
-          usdRate = (tryData['price'] as double);
-          logCallback('action', 'Dolar/TL kuru: ₺${usdRate.toStringAsFixed(2)}', LogLevel.info);
+          usdRate = (tryData['price'] as num?)?.toDouble() ?? 1.0;
+          logCallback(
+            'action',
+            'Dolar/TL kuru: ₺${usdRate.toStringAsFixed(2)}',
+            LogLevel.info,
+          );
         } catch (_) {}
 
         double totalDailyDeltaTl = 0;
@@ -266,17 +303,17 @@ class ActionAgent {
         final insightBuf = StringBuffer();
 
         for (final item in portfolioList) {
-          final name    = item['name']      as String;
-          final symbol  = item['symbol']    as String;
-          final units   = (item['units']    as num).toDouble();
-          final costTl  = (item['totalCost'] as num).toDouble();
+          final name = item['name'] as String;
+          final symbol = item['symbol'] as String;
+          final units = (item['units'] as num).toDouble();
+          final costTl = (item['totalCost'] as num).toDouble();
 
           if (units <= 0) continue;
 
           try {
-            final data       = await fetchYahooQuote(symbol);
-            final rawPrice   = data['price']         as double;
-            final changePct  = data['changePercent'] as double;
+            final data = await fetchYahooQuote(symbol);
+            final rawPrice = (data['price'] as num).toDouble();
+            final changePct = (data['changePercent'] as num).toDouble();
 
             // Fiyatı TL'ye çevir (investments_screen mantığıyla aynı)
             double livePriceTl = rawPrice;
@@ -286,29 +323,31 @@ class ActionAgent {
               livePriceTl = rawPrice * usdRate;
             }
 
-            final currentValTl  = units * livePriceTl;
-            final prevValTl     = currentValTl / (1 + changePct / 100);
-            final dailyDeltaTl  = currentValTl - prevValTl;
-            final profitTl      = currentValTl - costTl;
-            final profitPct     = costTl > 0 ? (profitTl / costTl) * 100 : 0.0;
+            final currentValTl = units * livePriceTl;
+            final prevValTl = currentValTl / (1 + changePct / 100);
+            final dailyDeltaTl = currentValTl - prevValTl;
+            final profitTl = currentValTl - costTl;
+            final profitPct = costTl > 0 ? (profitTl / costTl) * 100 : 0.0;
 
             totalDailyDeltaTl += dailyDeltaTl;
-            totalCurrentTl    += currentValTl;
-            totalCostTl       += costTl;
+            totalCurrentTl += currentValTl;
+            totalCostTl += costTl;
 
-            final dailySign  = dailyDeltaTl >= 0 ? '+' : '';
+            final dailySign = dailyDeltaTl >= 0 ? '+' : '';
             final profitSign = profitTl >= 0 ? '+' : '';
-            final arrow      = changePct >= 0 ? '▲' : '▼';
+            final arrow = changePct >= 0 ? '▲' : '▼';
 
-            final logLevel = changePct.abs() >= 3.0
-                ? LogLevel.warning   // ±3%+ → dikkat çekici
-                : LogLevel.info;
+            final logLevel =
+                changePct.abs() >= 3.0
+                    ? LogLevel
+                        .warning // ±3%+ → dikkat çekici
+                    : LogLevel.info;
 
             logCallback(
               'action',
               '$arrow $name: bugün $dailySign₺${dailyDeltaTl.toStringAsFixed(0)} '
-              '($dailySign${changePct.toStringAsFixed(2)}%) | '
-              'toplam kâr/zarar $profitSign₺${profitTl.toStringAsFixed(0)} ($profitSign${profitPct.toStringAsFixed(1)}%)',
+                  '($dailySign${changePct.toStringAsFixed(2)}%) | '
+                  'toplam kâr/zarar $profitSign₺${profitTl.toStringAsFixed(0)} ($profitSign${profitPct.toStringAsFixed(1)}%)',
               logLevel,
             );
 
@@ -316,10 +355,13 @@ class ActionAgent {
             if (changePct.abs() >= 5.0) {
               await _notifications.showPortfolioAlert(
                 assetName: name,
+                assetSymbol: symbol,
                 changePct: changePct,
                 deltaAmountTl: dailyDeltaTl,
               );
-              actions.add('$name portföy alarmı: $dailySign${changePct.toStringAsFixed(2)}%');
+              actions.add(
+                '$name portföy alarmı: $dailySign${changePct.toStringAsFixed(2)}%',
+              );
             }
 
             // Gemini bağlamı için
@@ -330,48 +372,86 @@ class ActionAgent {
               'bugün $dailySign₺${dailyDeltaTl.toStringAsFixed(0)} ($dailySign${changePct.toStringAsFixed(2)}%)',
             );
           } catch (e) {
-            logCallback('action', '$name fiyatı alınamadı: $e', LogLevel.warning);
+            logCallback(
+              'action',
+              '$name fiyatı alınamadı: $e',
+              LogLevel.warning,
+            );
           }
         }
 
         // Portföy özeti
         if (totalCurrentTl > 0) {
-          final totalDailySign   = totalDailyDeltaTl >= 0 ? '+' : '';
-          final totalProfitTl    = totalCurrentTl - totalCostTl;
-          final totalProfitSign  = totalProfitTl >= 0 ? '+' : '';
-          final totalDailyPct    = totalCurrentTl > 0
-              ? (totalDailyDeltaTl / (totalCurrentTl - totalDailyDeltaTl)) * 100
-              : 0.0;
+          final totalDailySign = totalDailyDeltaTl >= 0 ? '+' : '';
+          final totalProfitTl = totalCurrentTl - totalCostTl;
+          final totalProfitSign = totalProfitTl >= 0 ? '+' : '';
+          final totalDailyPct =
+              totalCurrentTl > 0
+                  ? (totalDailyDeltaTl / (totalCurrentTl - totalDailyDeltaTl)) *
+                      100
+                  : 0.0;
 
           logCallback(
             'action',
             'Portföy özeti → güncel ₺${totalCurrentTl.toStringAsFixed(0)} | '
-            'bugün $totalDailySign₺${totalDailyDeltaTl.toStringAsFixed(0)} '
-            '($totalDailySign${totalDailyPct.toStringAsFixed(2)}%) | '
-            'toplam kâr/zarar $totalProfitSign₺${totalProfitTl.toStringAsFixed(0)}',
+                'bugün $totalDailySign₺${totalDailyDeltaTl.toStringAsFixed(0)} '
+                '($totalDailySign${totalDailyPct.toStringAsFixed(2)}%) | '
+                'toplam kâr/zarar $totalProfitSign₺${totalProfitTl.toStringAsFixed(0)}',
             totalDailyDeltaTl >= 0 ? LogLevel.success : LogLevel.warning,
           );
 
-          // Günlük değişim ±2%'yi geçtiyse Gemini'den öneri al
-          if (totalDailyPct.abs() >= 2.0 && insightBuf.isNotEmpty) {
-            logCallback('action', 'Günlük değişim eşiği aşıldı, Gemini analizi isteniyor...', LogLevel.info);
-            try {
-              insightBuf.writeln('\nTOPLAM: güncel ₺${totalCurrentTl.toStringAsFixed(0)}, bugün $totalDailySign₺${totalDailyDeltaTl.toStringAsFixed(0)}');
-              final insight = await _gemini.generatePortfolioInsights(insightBuf.toString());
-              // Her öneri satırını ayrı log kaydı olarak yaz
-              for (final line in insight.split('\n')) {
-                final trimmed = line.trim();
-                if (trimmed.isEmpty) continue;
-                final isAlert = trimmed.toUpperCase().contains('SAT');
+          // Günlük değişim ±2%'yi geçtiyse Gemini'den öneri al (etkinse)
+          // Kota tasarrufu: son 30 dakika içinde çağrıldıysa atla
+          if (_gemini.isEnabled &&
+              totalDailyPct.abs() >= 2.0 &&
+              insightBuf.isNotEmpty) {
+            const _kPortfolioInsightCooldownKey =
+                'action_agent_last_portfolio_insight_ms';
+            const _kCooldownMs = 30 * 60 * 1000; // 30 dakika
+            final prefs2 = await SharedPreferences.getInstance();
+            final lastMs = prefs2.getInt(_kPortfolioInsightCooldownKey) ?? 0;
+            final nowMs = DateTime.now().millisecondsSinceEpoch;
+            final canCall = (nowMs - lastMs) >= _kCooldownMs;
+
+            if (canCall) {
+              logCallback(
+                'action',
+                'Günlük değişim eşiği aşıldı, Gemini analizi isteniyor...',
+                LogLevel.info,
+              );
+              try {
+                insightBuf.writeln(
+                  '\nTOPLAM: güncel ₺${totalCurrentTl.toStringAsFixed(0)}, bugün $totalDailySign₺${totalDailyDeltaTl.toStringAsFixed(0)}',
+                );
+                final insight = await _gemini.generatePortfolioInsights(
+                  insightBuf.toString(),
+                );
+                await prefs2.setInt(_kPortfolioInsightCooldownKey, nowMs);
+                for (final line in insight.split('\n')) {
+                  final trimmed = line.trim();
+                  if (trimmed.isEmpty) continue;
+                  final isAlert = trimmed.toUpperCase().contains('SAT');
+                  logCallback(
+                    'action',
+                    trimmed,
+                    isAlert ? LogLevel.warning : LogLevel.info,
+                  );
+                }
+                actions.add('Portföy AL/SAT analizi tamamlandı');
+              } catch (e) {
                 logCallback(
                   'action',
-                  trimmed,
-                  isAlert ? LogLevel.warning : LogLevel.info,
+                  'Gemini portföy analizi başarısız: $e',
+                  LogLevel.warning,
                 );
               }
-              actions.add('Portföy AL/SAT analizi tamamlandı');
-            } catch (e) {
-              logCallback('action', 'Gemini portföy analizi başarısız: $e', LogLevel.warning);
+            } else {
+              final remainMin = (_kCooldownMs - (nowMs - lastMs)) ~/ 60000;
+              logCallback(
+                'action',
+                'Portföy analizi cooldown aktif ($remainMin dk kaldı), atlanıyor',
+                LogLevel.info,
+              );
             }
           }
         }

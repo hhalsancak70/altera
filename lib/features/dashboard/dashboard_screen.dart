@@ -95,14 +95,19 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: orchestratorState.isRunning
-            ? null
-            : () => ref.read(orchestratorProvider.notifier).runOnce(),
+        onPressed:
+            orchestratorState.isRunning
+                ? null
+                : () => ref.read(orchestratorProvider.notifier).runOnce(),
         backgroundColor:
-            orchestratorState.isRunning ? AppColors.surfaceLight : AppColors.accent,
+            orchestratorState.isRunning
+                ? AppColors.surfaceLight
+                : AppColors.accent,
         foregroundColor: AppColors.primary,
         icon: Icon(
-          orchestratorState.isRunning ? Icons.hourglass_empty : Icons.play_arrow,
+          orchestratorState.isRunning
+              ? Icons.hourglass_empty
+              : Icons.play_arrow,
         ),
         label: Text(
           orchestratorState.isRunning ? 'Çalışıyor...' : 'Ajan Döngüsü',

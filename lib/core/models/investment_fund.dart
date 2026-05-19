@@ -138,26 +138,26 @@ class InvestmentFund {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'code': code,
-        'type': type.name,
-        'annualReturnRate': annualReturnRate,
-        'riskLevel': riskLevel.name,
-        'description': description,
-        'isRecommended': isRecommended,
-      };
+    'id': id,
+    'name': name,
+    'code': code,
+    'type': type.name,
+    'annualReturnRate': annualReturnRate,
+    'riskLevel': riskLevel.name,
+    'description': description,
+    'isRecommended': isRecommended,
+  };
 
   factory InvestmentFund.fromJson(Map<String, dynamic> json) => InvestmentFund(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        code: json['code'] as String,
-        type: FundType.values.byName(json['type'] as String),
-        annualReturnRate: (json['annualReturnRate'] as num).toDouble(),
-        riskLevel: RiskLevel.values.byName(json['riskLevel'] as String),
-        description: json['description'] as String,
-        isRecommended: json['isRecommended'] as bool? ?? false,
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    code: json['code'] as String,
+    type: FundType.values.byName(json['type'] as String),
+    annualReturnRate: (json['annualReturnRate'] as num).toDouble(),
+    riskLevel: RiskLevel.values.byName(json['riskLevel'] as String),
+    description: json['description'] as String,
+    isRecommended: json['isRecommended'] as bool? ?? false,
+  );
 
   @override
   bool operator ==(Object other) =>

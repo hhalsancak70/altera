@@ -75,8 +75,9 @@ class _SpendingPieChartState extends ConsumerState<SpendingPieChart> {
                 }
 
                 final total = spending.values.fold(0.0, (a, b) => a + b);
-                final entries = spending.entries.toList()
-                  ..sort((a, b) => b.value.compareTo(a.value));
+                final entries =
+                    spending.entries.toList()
+                      ..sort((a, b) => b.value.compareTo(a.value));
 
                 return Column(
                   children: [
@@ -96,30 +97,34 @@ class _SpendingPieChartState extends ConsumerState<SpendingPieChart> {
                                     return;
                                   }
                                   setState(() {
-                                    _touchedIndex = response
-                                        .touchedSection!.touchedSectionIndex;
+                                    _touchedIndex =
+                                        response
+                                            .touchedSection!
+                                            .touchedSectionIndex;
                                   });
                                 },
                               ),
-                              sections: entries.asMap().entries.map((e) {
-                                final isSelected = e.key == _touchedIndex;
-                                final cat = e.value.key;
-                                final val = e.value.value;
-                                return PieChartSectionData(
-                                  color: _categoryColor(cat),
-                                  value: val,
-                                  radius: isSelected ? 72 : 60,
-                                  showTitle: isSelected,
-                                  title: isSelected
-                                      ? '${(val / total * 100).toStringAsFixed(0)}%'
-                                      : '',
-                                  titleStyle: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                );
-                              }).toList(),
+                              sections:
+                                  entries.asMap().entries.map((e) {
+                                    final isSelected = e.key == _touchedIndex;
+                                    final cat = e.value.key;
+                                    final val = e.value.value;
+                                    return PieChartSectionData(
+                                      color: _categoryColor(cat),
+                                      value: val,
+                                      radius: isSelected ? 72 : 60,
+                                      showTitle: isSelected,
+                                      title:
+                                          isSelected
+                                              ? '${(val / total * 100).toStringAsFixed(0)}%'
+                                              : '',
+                                      titleStyle: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    );
+                                  }).toList(),
                               centerSpaceRadius: 52,
                               sectionsSpace: 2,
                             ),
@@ -149,28 +154,34 @@ class _SpendingPieChartState extends ConsumerState<SpendingPieChart> {
                     ),
                     const SizedBox(height: 16),
                     // Kategori listesi (en yüksekten)
-                    ...entries.take(6).map((e) => _LegendItem(
-                          category: e.key,
-                          amount: e.value,
-                          total: total,
-                          color: _categoryColor(e.key),
-                        )),
+                    ...entries
+                        .take(6)
+                        .map(
+                          (e) => _LegendItem(
+                            category: e.key,
+                            amount: e.value,
+                            total: total,
+                            color: _categoryColor(e.key),
+                          ),
+                        ),
                   ],
                 );
               },
-              loading: () => const SizedBox(
-                height: 200,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.accent,
+              loading:
+                  () => const SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accent,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              error: (_, __) => const Text(
-                'Grafik yüklenemedi',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
+              error:
+                  (_, __) => const Text(
+                    'Grafik yüklenemedi',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
             ),
           ],
         ),

@@ -121,41 +121,44 @@ class UserProfile {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'riskProfile': riskProfile.name,
-        'monthlyIncome': monthlyIncome,
-        'currency': currency,
-        'locale': locale,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'riskProfile': riskProfile.name,
+    'monthlyIncome': monthlyIncome,
+    'currency': currency,
+    'locale': locale,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        riskProfile:
-            RiskProfile.values.byName(json['riskProfile'] as String? ?? 'balanced'),
-        monthlyIncome: (json['monthlyIncome'] as num? ?? 0).toDouble(),
-        currency: json['currency'] as String? ?? 'TRY',
-        locale: json['locale'] as String? ?? 'tr',
-        createdAt: DateTime.parse(
-            json['createdAt'] as String? ?? DateTime.now().toIso8601String()),
-        updatedAt: DateTime.parse(
-            json['updatedAt'] as String? ?? DateTime.now().toIso8601String()),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    riskProfile: RiskProfile.values.byName(
+      json['riskProfile'] as String? ?? 'balanced',
+    ),
+    monthlyIncome: (json['monthlyIncome'] as num? ?? 0).toDouble(),
+    currency: json['currency'] as String? ?? 'TRY',
+    locale: json['locale'] as String? ?? 'tr',
+    createdAt: DateTime.parse(
+      json['createdAt'] as String? ?? DateTime.now().toIso8601String(),
+    ),
+    updatedAt: DateTime.parse(
+      json['updatedAt'] as String? ?? DateTime.now().toIso8601String(),
+    ),
+  );
 
   /// Varsayılan profil - onboarding tamamlanmadan kullanılır
   factory UserProfile.defaults() => UserProfile(
-        id: 'default-user',
-        name: 'Kullanıcı',
-        riskProfile: RiskProfile.balanced,
-        monthlyIncome: 0,
-        currency: 'TRY',
-        locale: 'tr',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+    id: 'default-user',
+    name: 'Kullanıcı',
+    riskProfile: RiskProfile.balanced,
+    monthlyIncome: 0,
+    currency: 'TRY',
+    locale: 'tr',
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+  );
 
   @override
   bool operator ==(Object other) =>
