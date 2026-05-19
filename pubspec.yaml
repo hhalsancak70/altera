@@ -92,3 +92,4 @@ flutter:
 
   assets:
     - assets/data/investment_funds.json
+    - assets/data/mock_transactions.json

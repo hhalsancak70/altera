@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+import 'core/constants/app_constants.dart';
 import 'core/database/hive_boxes.dart';
 import 'core/providers.dart';
 import 'core/services/notification_service.dart';
@@ -51,16 +53,27 @@ void main() async {
   await initHive();
   await NotificationService.initialize();
 
-  runApp(
-    const ProviderScope(
-      child: AlteraApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: AlteraApp()));
+}
+
+/// İlk açılışta onboarding tamamlandı mı kontrol eder.
+/// Hive zaten açılmış durumda (initHive() main'de çağrıldı).
+bool _isOnboardingComplete() {
+  final box = Hive.box<String>(HiveBoxes.userProfile);
+  final json = box.get(AppConstants.kHiveKeyUserProfile);
+  return json != null && json.isNotEmpty;
 }
 
 /// GoRouter yapılandırması
 final _router = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) {
+    final onboarded = _isOnboardingComplete();
+    final isOnboarding = state.matchedLocation == '/onboarding';
+    if (!onboarded && !isOnboarding) return '/onboarding';
+    if (onboarded && isOnboarding) return '/';
+    return null;
+  },
   routes: [
     // Ana scaffold - BottomNav ile
     ShellRoute(
@@ -98,10 +111,7 @@ final _router = GoRouter(
       path: '/onboarding',
       builder: (context, state) => const OnboardingScreen(),
     ),
-    GoRoute(
-      path: '/import',
-      builder: (context, state) => const ImportScreen(),
-    ),
+    GoRoute(path: '/import', builder: (context, state) => const ImportScreen()),
     GoRoute(
       path: '/archive',
       builder: (context, state) => const ArchiveScreen(),
@@ -127,10 +137,7 @@ class AlteraApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [
-        Locale('tr', 'TR'),
-        Locale('en', 'US'),
-      ],
+      supportedLocales: const [Locale('tr', 'TR'), Locale('en', 'US')],
       locale: const Locale('tr', 'TR'),
     );
   }

@@ -1,21 +1,17 @@
 // İşlemler listesi ekranı - arama, filtre, CRUD ve AI etiketleri
 import 'dart:io';
-import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart' as ex;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
+import '../../core/services/gemini_service.dart';
 import 'add_edit_transaction_screen.dart';
 import 'widgets/transaction_tile.dart';
 
@@ -46,9 +42,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           IconButton(
             icon: Icon(
               Icons.filter_list,
-              color: _selectedCategory != null || _showUnanalyzedOnly
-                  ? AppColors.accent
-                  : AppColors.textSecondary,
+              color:
+                  _selectedCategory != null || _showUnanalyzedOnly
+                      ? AppColors.accent
+                      : AppColors.textSecondary,
             ),
             onPressed: _showFilterSheet,
           ),
@@ -76,7 +73,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   onTap: () => _importDocument(context),
                 ),
                 const SizedBox(width: 16),
-                Container(width: 1, height: 24, color: Colors.white.withOpacity(0.2)),
+                Container(
+                  width: 1,
+                  height: 24,
+                  color: Colors.white.withOpacity(0.2),
+                ),
                 const SizedBox(width: 16),
                 _GlassButton(
                   icon: Icons.add,
@@ -99,13 +100,20 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'İşlem ara...',
-                prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                  icon: const Icon(Icons.clear, color: AppColors.textSecondary),
-                  onPressed: () => setState(() => _searchQuery = ''),
-                )
-                    : null,
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon:
+                    _searchQuery.isNotEmpty
+                        ? IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () => setState(() => _searchQuery = ''),
+                        )
+                        : null,
               ),
             ),
           ),
@@ -119,14 +127,14 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   if (_selectedCategory != null)
                     _FilterChip(
                       label:
-                      '${_selectedCategory!.emoji} ${_selectedCategory!.displayNameTr}',
+                          '${_selectedCategory!.emoji} ${_selectedCategory!.displayNameTr}',
                       onRemove: () => setState(() => _selectedCategory = null),
                     ),
                   if (_showUnanalyzedOnly)
                     _FilterChip(
                       label: 'Analiz Bekliyor',
-                      onRemove: () =>
-                          setState(() => _showUnanalyzedOnly = false),
+                      onRemove:
+                          () => setState(() => _showUnanalyzedOnly = false),
                     ),
                 ],
               ),
@@ -168,18 +176,20 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   },
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.accent,
-                ),
-              ),
-              error: (_, __) => const Center(
-                child: Text(
-                  'İşlemler yüklenemedi',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              ),
+              loading:
+                  () => const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                    ),
+                  ),
+              error:
+                  (_, __) => const Center(
+                    child: Text(
+                      'İşlemler yüklenemedi',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
             ),
           ),
         ],
@@ -210,22 +220,27 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        useRootNavigator: true, // 🔥 Ekrana tam oturması ve GoRouter'dan kaçması için şart
-        builder: (ctx) => const AlertDialog(
-          backgroundColor: AppColors.surface,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppColors.accent),
-              SizedBox(height: 16),
-              Text(
-                'ALTERA Ajanı belgeyi okuyor ve işlemleri çıkarıyor. Lütfen bekleyin...',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+        useRootNavigator:
+            true, // 🔥 Ekrana tam oturması ve GoRouter'dan kaçması için şart
+        builder:
+            (ctx) => const AlertDialog(
+              backgroundColor: AppColors.surface,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.accent),
+                  SizedBox(height: 16),
+                  Text(
+                    'ALTERA Ajanı belgeyi okuyor ve işlemleri çıkarıyor. Lütfen bekleyin...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
       );
 
       isDialogOpen = true;
@@ -237,7 +252,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         var excel = ex.Excel.decodeBytes(fileBytes);
         for (var table in excel.tables.keys) {
           for (var row in excel.tables[table]!.rows) {
-            extractedExcelText += row.map((e) => e?.value.toString() ?? '').join(' ') + '\n';
+            extractedExcelText +=
+                row.map((e) => e?.value.toString() ?? '').join(' ') + '\n';
           }
         }
       }
@@ -258,65 +274,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         throw Exception('Belgeden metin okunamadı.');
       }
 
-      // 4. Groq API ile İşlem Yakalama
-      const storage = FlutterSecureStorage();
-      String? apiKey = await storage.read(key: AppConstants.kSecureKeyGeminiApiKey);
-
-      if (apiKey == null || apiKey.isEmpty || apiKey == 'AIzaSyCwhgjxfc2i3W3_-n8JYkVhYg3xcn8HbRE') {
-        apiKey = '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';
-      }
-
-      final prompt = '''
-Sen ALTERA finansal analiz ajanısın. Aşağıdaki belge içeriğini analiz et ve tüm harcama/gelir kalemlerini bul.
-SADECE geçerli bir JSON formatında (Array içinde) döndür. Başka hiçbir açıklama yazma.
-
-Örnek Çıktı:
-[
-  {
-    "description": "Migros A.Ş.",
-    "amount": -250.50,
-    "date": "2023-10-25T00:00:00",
-    "category": "market",
-    "type": "need"
-  }
-]
-
-Belge İçeriği:
-$extractedText
-''';
-
-      final uri = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
-      final response = await http.post(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': 'llama-3.1-8b-instant',
-          'messages': [
-            {'role': 'user', 'content': prompt}
-          ],
-          'temperature': 0.1,
-        }),
+      // 4. Gemini API ile İşlem Yakalama
+      final gemini = await GeminiService.initialize();
+      final List<dynamic> jsonList = await gemini.parseDocumentTransactions(
+        extractedText,
       );
-
-      if (response.statusCode != 200) {
-        throw Exception('API Hatası: ${response.statusCode} - ${response.body}');
-      }
-
-      final data = jsonDecode(utf8.decode(response.bodyBytes));
-      final responseText = data['choices'][0]['message']['content'] as String;
-
-      final start = responseText.indexOf('[');
-      final end = responseText.lastIndexOf(']');
-
-      if (start == -1 || end == -1) {
-        throw Exception('Geçerli işlem bulunamadı.');
-      }
-
-      final jsonStr = responseText.substring(start, end + 1);
-      final List<dynamic> jsonList = jsonDecode(jsonStr);
 
       if (jsonList.isEmpty) {
         throw Exception('Belgede işlem bulunamadı.');
@@ -368,7 +330,6 @@ $extractedText
           behavior: SnackBarBehavior.floating,
         ),
       );
-
     } catch (e) {
       if (!mounted) return;
 
@@ -392,9 +353,7 @@ $extractedText
   Future<void> _openAddScreen(BuildContext context) async {
     final result = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => const AddEditTransactionScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const AddEditTransactionScreen()),
     );
     if (result == true) {
       ref.invalidate(allTransactionsProvider);
@@ -416,25 +375,29 @@ $extractedText
   Future<bool?> _confirmDelete(BuildContext context, Transaction tx) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('İşlemi Sil', style: TextStyle(color: AppColors.textPrimary)),
-        content: Text(
-          '"${tx.description}" işlemi kalıcı olarak silinecek.',
-          style: const TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('İptal'),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'İşlemi Sil',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: Text(
+              '"${tx.description}" işlemi kalıcı olarak silinecek.',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('İptal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                child: const Text('Sil'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -478,9 +441,14 @@ $extractedText
         children: [
           Icon(icon, color: Colors.white, size: 22),
           const SizedBox(height: 4),
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -507,81 +475,94 @@ $extractedText
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Filtrele',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Kategori',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: TransactionCategory.values.map((cat) {
-                final isSelected = _selectedCategory == cat;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedCategory = isSelected ? null : cat;
-                    });
+      builder:
+          (ctx) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Filtrele',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Kategori',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children:
+                      TransactionCategory.values.map((cat) {
+                        final isSelected = _selectedCategory == cat;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory = isSelected ? null : cat;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  isSelected
+                                      ? AppColors.accent.withOpacity(0.2)
+                                      : AppColors.surfaceLight,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color:
+                                    isSelected
+                                        ? AppColors.accent
+                                        : Colors.transparent,
+                              ),
+                            ),
+                            child: Text(
+                              '${cat.emoji} ${cat.displayNameTr}',
+                              style: TextStyle(
+                                color:
+                                    isSelected
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  value: _showUnanalyzedOnly,
+                  onChanged: (v) {
+                    setState(() => _showUnanalyzedOnly = v);
                     Navigator.pop(ctx);
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.accent.withOpacity(0.2)
-                          : AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.accent
-                            : Colors.transparent,
-                      ),
-                    ),
-                    child: Text(
-                      '${cat.emoji} ${cat.displayNameTr}',
-                      style: TextStyle(
-                        color: isSelected
-                            ? AppColors.accent
-                            : AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
+                  title: const Text(
+                    'Yalnızca analiz bekleyenler',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
                     ),
                   ),
-                );
-              }).toList(),
+                  activeColor: AppColors.accent,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              value: _showUnanalyzedOnly,
-              onChanged: (v) {
-                setState(() => _showUnanalyzedOnly = v);
-                Navigator.pop(ctx);
-              },
-              title: const Text(
-                'Yalnızca analiz bekleyenler',
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
-              ),
-              activeColor: AppColors.accent,
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }

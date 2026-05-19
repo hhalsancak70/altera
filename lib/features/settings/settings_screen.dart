@@ -20,7 +20,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final _apiKeyController = TextEditingController(text: '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');
+  final _apiKeyController = TextEditingController();
   final _nameController = TextEditingController();
   final _incomeController = TextEditingController();
   bool _apiKeyVisible = false;
@@ -62,170 +62,193 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
       body: profileAsync.when(
-        data: (profile) => ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            // Profil bölümü
-            _SectionTitle(title: 'Profil'),
-            _SettingsCard(
+        data:
+            (profile) => ListView(
+              padding: const EdgeInsets.only(bottom: 24),
               children: [
-                _EditableItem(
-                  label: 'Adın',
-                  value: profile.name,
-                  onEdit: () => _editName(context, profile),
+                // Profil bölümü
+                _SectionTitle(title: 'Profil'),
+                _SettingsCard(
+                  children: [
+                    _EditableItem(
+                      label: 'Adın',
+                      value: profile.name,
+                      onEdit: () => _editName(context, profile),
+                    ),
+                    const _Separator(),
+                    _EditableItem(
+                      label: 'Aylık Gelir',
+                      value: '₺${profile.monthlyIncome.toStringAsFixed(0)}',
+                      onEdit: () => _editIncome(context, profile),
+                    ),
+                  ],
                 ),
-                const _Separator(),
-                _EditableItem(
-                  label: 'Aylık Gelir',
-                  value: '₺${profile.monthlyIncome.toStringAsFixed(0)}',
-                  onEdit: () => _editIncome(context, profile),
+
+                // Risk profili
+                _SectionTitle(title: 'Risk Profili'),
+                _SettingsCard(
+                  children:
+                      RiskProfile.values
+                          .map(
+                            (rp) => _RiskProfileOption(
+                              profile: rp,
+                              isSelected: profile.riskProfile == rp,
+                              onSelect: () => _updateRiskProfile(profile, rp),
+                            ),
+                          )
+                          .toList(),
                 ),
-              ],
-            ),
 
-            // Risk profili
-            _SectionTitle(title: 'Risk Profili'),
-            _SettingsCard(
-              children: RiskProfile.values
-                  .map((rp) => _RiskProfileOption(
-                        profile: rp,
-                        isSelected: profile.riskProfile == rp,
-                        onSelect: () => _updateRiskProfile(profile, rp),
-                      ))
-                  .toList(),
-            ),
-
-            // Gemini API
-            _SectionTitle(title: 'Gemini API'),
-            _SettingsCard(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'API Key',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _apiKeyController,
-                        obscureText: !_apiKeyVisible,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'AIza...',
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  _apiKeyVisible
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                  color: AppColors.textSecondary,
-                                  size: 18,
-                                ),
-                                onPressed: () => setState(
-                                    () => _apiKeyVisible = !_apiKeyVisible),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.save_outlined,
-                                    color: AppColors.accent, size: 18),
-                                onPressed: _saveApiKey,
-                              ),
-                            ],
+                // Gemini API
+                _SectionTitle(title: 'Gemini API'),
+                _SettingsCard(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'API Key',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _apiKeyController,
+                            obscureText: !_apiKeyVisible,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'AIza...',
+                              suffixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(
+                                      _apiKeyVisible
+                                          ? Icons.visibility_off
+                                          : Icons.visibility,
+                                      color: AppColors.textSecondary,
+                                      size: 18,
+                                    ),
+                                    onPressed:
+                                        () => setState(
+                                          () =>
+                                              _apiKeyVisible = !_apiKeyVisible,
+                                        ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.save_outlined,
+                                      color: AppColors.accent,
+                                      size: 18,
+                                    ),
+                                    onPressed: _saveApiKey,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'API key Google AI Studio\'dan alınabilir.\nUygulama içinde güvenli olarak saklanır.',
+                            style: TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'API key Google AI Studio\'dan alınabilir.\nUygulama içinde güvenli olarak saklanır.',
-                        style: TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
 
-            // Ajan ayarları
-            _SectionTitle(title: 'Ajan'),
-            _SettingsCard(
-              children: [
-                _ToggleItem(
-                  label: 'Otomatik Ajan Döngüsü',
-                  subtitle: 'Her 30 saniyede bir çalışır',
-                  value: ref.watch(orchestratorProvider.notifier).isAutoModeActive,
-                  onChanged: (v) {
-                    if (v) {
-                      ref.read(orchestratorProvider.notifier).startAutoMode();
-                    } else {
-                      ref.read(orchestratorProvider.notifier).stopAutoMode();
-                    }
-                    setState(() {});
-                  },
+                // Ajan ayarları
+                _SectionTitle(title: 'Ajan'),
+                _SettingsCard(
+                  children: [
+                    _ToggleItem(
+                      label: 'Otomatik Ajan Döngüsü',
+                      subtitle: 'Her 30 saniyede bir çalışır',
+                      value:
+                          ref
+                              .watch(orchestratorProvider.notifier)
+                              .isAutoModeActive,
+                      onChanged: (v) {
+                        if (v) {
+                          ref
+                              .read(orchestratorProvider.notifier)
+                              .startAutoMode();
+                        } else {
+                          ref
+                              .read(orchestratorProvider.notifier)
+                              .stopAutoMode();
+                        }
+                        setState(() {});
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            ),
 
-            // Veri yönetimi
-            _SectionTitle(title: 'Veri'),
-            _SettingsCard(
-              children: [
-                _ActionItem(
-                  label: 'Ekstre İçe Aktar',
-                  icon: Icons.upload_file_outlined,
-                  color: AppColors.accent,
-                  onTap: () => Navigator.pushNamed(context, '/import'),
+                // Veri yönetimi
+                _SectionTitle(title: 'Veri'),
+                _SettingsCard(
+                  children: [
+                    _ActionItem(
+                      label: 'Ekstre İçe Aktar',
+                      icon: Icons.upload_file_outlined,
+                      color: AppColors.accent,
+                      onTap: () => Navigator.pushNamed(context, '/import'),
+                    ),
+                    const _Separator(),
+                    _ActionItem(
+                      label: 'Geçmiş Ayları Görüntüle',
+                      icon: Icons.archive_outlined,
+                      color: AppColors.accent,
+                      onTap: () => Navigator.pushNamed(context, '/archive'),
+                    ),
+                    const _Separator(),
+                    _ActionItem(
+                      label: 'Tüm Verileri Sıfırla',
+                      icon: Icons.delete_forever,
+                      color: AppColors.danger,
+                      onTap: () => _resetAllData(context),
+                    ),
+                  ],
                 ),
-                const _Separator(),
-                _ActionItem(
-                  label: 'Geçmiş Ayları Görüntüle',
-                  icon: Icons.archive_outlined,
-                  color: AppColors.accent,
-                  onTap: () => Navigator.pushNamed(context, '/archive'),
-                ),
-                const _Separator(),
-                _ActionItem(
-                  label: 'Tüm Verileri Sıfırla',
-                  icon: Icons.delete_forever,
-                  color: AppColors.danger,
-                  onTap: () => _resetAllData(context),
-                ),
-              ],
-            ),
 
-            // Hakkında
-            _SectionTitle(title: 'Hakkında'),
-            _SettingsCard(
-              children: [
-                _InfoItem(label: 'Uygulama', value: 'ALTERA v1.0.0'),
-                const _Separator(),
-                _InfoItem(label: 'AI', value: 'Gemini 2.0 Flash'),
-                const _Separator(),
-                _InfoItem(label: 'Etkinlik', value: 'BTK Hackathon 2026'),
+                // Hakkında
+                _SectionTitle(title: 'Hakkında'),
+                _SettingsCard(
+                  children: [
+                    _InfoItem(label: 'Uygulama', value: 'ALTERA v1.0.0'),
+                    const _Separator(),
+                    _InfoItem(label: 'AI', value: 'Gemini 2.0 Flash'),
+                    const _Separator(),
+                    _InfoItem(label: 'Etkinlik', value: 'BTK Hackathon 2026'),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
-        loading: () => const Center(
-          child: CircularProgressIndicator(
-              strokeWidth: 2, color: AppColors.accent),
-        ),
-        error: (_, __) => const Center(
-          child: Text('Profil yüklenemedi',
-              style: TextStyle(color: AppColors.textSecondary)),
-        ),
+        loading:
+            () => const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.accent,
+              ),
+            ),
+        error:
+            (_, __) => const Center(
+              child: Text(
+                'Profil yüklenemedi',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
       ),
     );
   }
@@ -233,7 +256,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _saveApiKey() async {
     const storage = FlutterSecureStorage();
     await storage.write(
-        key: AppConstants.kSecureKeyGeminiApiKey, value: _apiKeyController.text);
+      key: AppConstants.kSecureKeyGeminiApiKey,
+      value: _apiKeyController.text,
+    );
     ref.invalidate(geminiServiceProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -252,7 +277,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     final box = Hive.box<String>(HiveBoxes.userProfile);
     await box.put(
-        AppConstants.kHiveKeyUserProfile, jsonEncode(updated.toJson()));
+      AppConstants.kHiveKeyUserProfile,
+      jsonEncode(updated.toJson()),
+    );
     ref.invalidate(userProfileProvider);
   }
 
@@ -260,33 +287,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _nameController.text = profile.name;
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Adını Düzenle',
-            style: TextStyle(color: AppColors.textPrimary)),
-        content: TextField(
-          controller: _nameController,
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: const InputDecoration(hintText: 'Adın'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('İptal')),
-          ElevatedButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, _nameController.text),
-              child: const Text('Kaydet')),
-        ],
-      ),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'Adını Düzenle',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: TextField(
+              controller: _nameController,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(hintText: 'Adın'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, _nameController.text),
+                child: const Text('Kaydet'),
+              ),
+            ],
+          ),
     );
 
     if (result != null && result.isNotEmpty) {
-      final updated =
-          profile.copyWith(name: result, updatedAt: DateTime.now());
+      final updated = profile.copyWith(name: result, updatedAt: DateTime.now());
       final box = Hive.box<String>(HiveBoxes.userProfile);
       await box.put(
-          AppConstants.kHiveKeyUserProfile, jsonEncode(updated.toJson()));
+        AppConstants.kHiveKeyUserProfile,
+        jsonEncode(updated.toJson()),
+      );
       ref.invalidate(userProfileProvider);
     }
   }
@@ -295,37 +327,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _incomeController.text = profile.monthlyIncome.toStringAsFixed(0);
     final result = await showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Aylık Gelir',
-            style: TextStyle(color: AppColors.textPrimary)),
-        content: TextField(
-          controller: _incomeController,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: const InputDecoration(
-              hintText: 'Aylık gelir (TL)',
-              prefixText: '₺ ',
-              prefixStyle: TextStyle(color: AppColors.accent)),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('İptal')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(
-                  ctx, double.tryParse(_incomeController.text)),
-              child: const Text('Kaydet')),
-        ],
-      ),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'Aylık Gelir',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: TextField(
+              controller: _incomeController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'Aylık gelir (TL)',
+                prefixText: '₺ ',
+                prefixStyle: TextStyle(color: AppColors.accent),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed:
+                    () => Navigator.pop(
+                      ctx,
+                      double.tryParse(_incomeController.text),
+                    ),
+                child: const Text('Kaydet'),
+              ),
+            ],
+          ),
     );
 
     if (result != null) {
-      final updated =
-          profile.copyWith(monthlyIncome: result, updatedAt: DateTime.now());
+      final updated = profile.copyWith(
+        monthlyIncome: result,
+        updatedAt: DateTime.now(),
+      );
       final box = Hive.box<String>(HiveBoxes.userProfile);
       await box.put(
-          AppConstants.kHiveKeyUserProfile, jsonEncode(updated.toJson()));
+        AppConstants.kHiveKeyUserProfile,
+        jsonEncode(updated.toJson()),
+      );
       ref.invalidate(userProfileProvider);
     }
   }
@@ -333,26 +378,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _resetAllData(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Tüm Verileri Sıfırla',
-            style: TextStyle(color: AppColors.danger)),
-        content: const Text(
-          'İşlemler, bütçeler ve ajan logları silinecek. Bu işlem geri alınamaz.',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('İptal')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style:
-                ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Sıfırla'),
+      builder:
+          (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'Tüm Verileri Sıfırla',
+              style: TextStyle(color: AppColors.danger),
+            ),
+            content: const Text(
+              'İşlemler, bütçeler ve ajan logları silinecek. Bu işlem geri alınamaz.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('İptal'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                ),
+                child: const Text('Sıfırla'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirmed == true) {
@@ -425,7 +475,11 @@ class _Separator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Divider(
-        height: 1, thickness: 1, color: Color(0xFF1F2937), indent: 16);
+      height: 1,
+      thickness: 1,
+      color: Color(0xFF1F2937),
+      indent: 16,
+    );
   }
 }
 
@@ -434,23 +488,35 @@ class _EditableItem extends StatelessWidget {
   final String value;
   final VoidCallback onEdit;
 
-  const _EditableItem(
-      {required this.label, required this.value, required this.onEdit});
+  const _EditableItem({
+    required this.label,
+    required this.value,
+    required this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text(label,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+      title: Text(
+        label,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 14)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
           const SizedBox(width: 4),
-          const Icon(Icons.chevron_right,
-              color: AppColors.textTertiary, size: 18),
+          const Icon(
+            Icons.chevron_right,
+            color: AppColors.textTertiary,
+            size: 18,
+          ),
         ],
       ),
       onTap: onEdit,
@@ -467,11 +533,14 @@ class _InfoItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text(label,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-      trailing: Text(value,
-          style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 14)),
+      title: Text(
+        label,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+      ),
+      trailing: Text(
+        value,
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+      ),
     );
   }
 }
@@ -492,11 +561,14 @@ class _ToggleItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SwitchListTile(
-      title: Text(label,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-      subtitle: Text(subtitle,
-          style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 12)),
+      title: Text(
+        label,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+      ),
       value: value,
       onChanged: onChanged,
       activeColor: AppColors.accent,
@@ -521,9 +593,14 @@ class _ActionItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: Icon(icon, color: color, size: 20),
-      title: Text(label,
-          style: TextStyle(
-              color: color, fontSize: 14, fontWeight: FontWeight.w500)),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
       onTap: onTap,
     );
   }
@@ -544,20 +621,26 @@ class _RiskProfileOption extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: Text(profile.emoji, style: const TextStyle(fontSize: 22)),
-      title: Text(profile.displayNameTr,
-          style: TextStyle(
-            color:
-                isSelected ? AppColors.accent : AppColors.textPrimary,
-            fontSize: 14,
-            fontWeight:
-                isSelected ? FontWeight.w600 : FontWeight.w400,
-          )),
-      subtitle: Text(profile.descriptionTr,
-          style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 11)),
-      trailing: isSelected
-          ? const Icon(Icons.check_circle, color: AppColors.accent, size: 20)
-          : null,
+      title: Text(
+        profile.displayNameTr,
+        style: TextStyle(
+          color: isSelected ? AppColors.accent : AppColors.textPrimary,
+          fontSize: 14,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+        ),
+      ),
+      subtitle: Text(
+        profile.descriptionTr,
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+      ),
+      trailing:
+          isSelected
+              ? const Icon(
+                Icons.check_circle,
+                color: AppColors.accent,
+                size: 20,
+              )
+              : null,
       onTap: onSelect,
     );
   }
