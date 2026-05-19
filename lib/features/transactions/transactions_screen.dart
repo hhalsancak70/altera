@@ -1,8 +1,19 @@
 // İşlemler listesi ekranı - arama, filtre, CRUD ve AI etiketleri
+import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:excel/excel.dart' as ex;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/models/transaction.dart';
 import '../../core/providers.dart';
 import 'add_edit_transaction_screen.dart';
@@ -43,12 +54,40 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openAddScreen(context),
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.black,
-        icon: const Icon(Icons.add),
-        label: const Text('İşlem Ekle'),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _GlassButton(
+                  icon: Icons.document_scanner,
+                  label: 'Dekont',
+                  color: AppColors.accent,
+                  onTap: () => _importDocument(context),
+                ),
+                const SizedBox(width: 16),
+                Container(width: 1, height: 24, color: Colors.white.withOpacity(0.2)),
+                const SizedBox(width: 16),
+                _GlassButton(
+                  icon: Icons.add,
+                  label: 'İşlem Ekle',
+                  color: AppColors.success,
+                  onTap: () => _openAddScreen(context),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -63,9 +102,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, color: AppColors.textSecondary),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                      )
+                  icon: const Icon(Icons.clear, color: AppColors.textSecondary),
+                  onPressed: () => setState(() => _searchQuery = ''),
+                )
                     : null,
               ),
             ),
@@ -80,7 +119,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   if (_selectedCategory != null)
                     _FilterChip(
                       label:
-                          '${_selectedCategory!.emoji} ${_selectedCategory!.displayNameTr}',
+                      '${_selectedCategory!.emoji} ${_selectedCategory!.displayNameTr}',
                       onRemove: () => setState(() => _selectedCategory = null),
                     ),
                   if (_showUnanalyzedOnly)
@@ -106,13 +145,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 88), // FAB için boşluk
+                  padding: const EdgeInsets.only(bottom: 140),
                   itemCount: filtered.length,
                   itemBuilder: (context, i) {
                     final tx = filtered[i];
                     return Dismissible(
                       key: ValueKey(tx.id),
-                      // Sola kaydır → sil
                       background: _buildSwipeBackground(
                         alignment: Alignment.centerRight,
                         color: Colors.redAccent,
@@ -147,6 +185,208 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         ],
       ),
     );
+  }
+
+  // 🔥 GÜNCEL: Siyah Ekran (GoRouter Pop) Çözümlü Yükleme Motoru
+  Future<void> _importDocument(BuildContext context) async {
+    bool isDialogOpen = false;
+
+    try {
+      // 1. Dosya Seçimi
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'xlsx', 'xls'],
+      );
+
+      if (result == null || result.files.single.path == null) return;
+
+      final file = File(result.files.single.path!);
+      final fileBytes = await file.readAsBytes();
+      final extension = result.files.single.extension?.toLowerCase() ?? '';
+
+      if (!mounted) return;
+
+      // 2. Yükleniyor Dialogu Göster
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true, // 🔥 Ekrana tam oturması ve GoRouter'dan kaçması için şart
+        builder: (ctx) => const AlertDialog(
+          backgroundColor: AppColors.surface,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.accent),
+              SizedBox(height: 16),
+              Text(
+                'ALTERA Ajanı belgeyi okuyor ve işlemleri çıkarıyor. Lütfen bekleyin...',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      isDialogOpen = true;
+
+      String extractedExcelText = '';
+
+      // Eğer Excel ise lokal olarak metne çevir
+      if (extension == 'xlsx' || extension == 'xls') {
+        var excel = ex.Excel.decodeBytes(fileBytes);
+        for (var table in excel.tables.keys) {
+          for (var row in excel.tables[table]!.rows) {
+            extractedExcelText += row.map((e) => e?.value.toString() ?? '').join(' ') + '\n';
+          }
+        }
+      }
+
+      // 3. Dosyadan Metin Çıkarma (PDF veya Excel)
+      String extractedText = '';
+
+      if (extension == 'pdf') {
+        final PdfDocument document = PdfDocument(inputBytes: fileBytes);
+        final PdfTextExtractor extractor = PdfTextExtractor(document);
+        extractedText = extractor.extractText();
+        document.dispose();
+      } else if (extension == 'xlsx' || extension == 'xls') {
+        extractedText = extractedExcelText;
+      }
+
+      if (extractedText.isEmpty) {
+        throw Exception('Belgeden metin okunamadı.');
+      }
+
+      // 4. Groq API ile İşlem Yakalama
+      const storage = FlutterSecureStorage();
+      String? apiKey = await storage.read(key: AppConstants.kSecureKeyGeminiApiKey);
+
+      if (apiKey == null || apiKey.isEmpty || apiKey == 'AIzaSyCwhgjxfc2i3W3_-n8JYkVhYg3xcn8HbRE') {
+        apiKey = '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';
+      }
+
+      final prompt = '''
+Sen ALTERA finansal analiz ajanısın. Aşağıdaki belge içeriğini analiz et ve tüm harcama/gelir kalemlerini bul.
+SADECE geçerli bir JSON formatında (Array içinde) döndür. Başka hiçbir açıklama yazma.
+
+Örnek Çıktı:
+[
+  {
+    "description": "Migros A.Ş.",
+    "amount": -250.50,
+    "date": "2023-10-25T00:00:00",
+    "category": "market",
+    "type": "need"
+  }
+]
+
+Belge İçeriği:
+$extractedText
+''';
+
+      final uri = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
+      final response = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'model': 'llama-3.1-8b-instant',
+          'messages': [
+            {'role': 'user', 'content': prompt}
+          ],
+          'temperature': 0.1,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('API Hatası: ${response.statusCode} - ${response.body}');
+      }
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      final responseText = data['choices'][0]['message']['content'] as String;
+
+      final start = responseText.indexOf('[');
+      final end = responseText.lastIndexOf(']');
+
+      if (start == -1 || end == -1) {
+        throw Exception('Geçerli işlem bulunamadı.');
+      }
+
+      final jsonStr = responseText.substring(start, end + 1);
+      final List<dynamic> jsonList = jsonDecode(jsonStr);
+
+      if (jsonList.isEmpty) {
+        throw Exception('Belgede işlem bulunamadı.');
+      }
+
+      final repo = ref.read(transactionRepositoryProvider);
+
+      for (var item in jsonList) {
+        final tx = Transaction(
+          id: const Uuid().v4(),
+          description: item['description'] ?? 'Otomatik Kayıt',
+          amount: (item['amount'] as num?)?.toDouble() ?? 0.0,
+          date: DateTime.tryParse(item['date'] ?? '') ?? DateTime.now(),
+          category: TransactionCategory.values.firstWhere(
+            (e) => e.name == (item['category']?.toString().toLowerCase()),
+            orElse: () => TransactionCategory.other,
+          ),
+          type: TransactionType.values.firstWhere(
+            (e) => e.name == (item['type']?.toString().toLowerCase()),
+            orElse: () => TransactionType.need,
+          ),
+          aiReason: 'Dekont Analizi',
+          isAnalyzed: true,
+          source: 'import',
+          createdAt: DateTime.now(),
+        );
+        await repo.addTransaction(tx);
+      }
+
+      if (!mounted) return;
+
+      // 🔥 GÜVENLİ KAPATMA
+      if (isDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        isDialogOpen = false;
+      }
+
+      ref.invalidate(allTransactionsProvider);
+      ref.invalidate(currentMonthTransactionsProvider);
+      ref.invalidate(recentTransactionsProvider);
+      ref.invalidate(monthlySpendingProvider);
+      ref.invalidate(monthlySummaryProvider);
+      ref.invalidate(currentMonthBudgetsProvider);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${jsonList.length} işlem başarıyla eklendi!'),
+          backgroundColor: Colors.greenAccent.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+
+      // 🔥 HATA DURUMUNDA GÜVENLİ KAPATMA
+      if (isDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        isDialogOpen = false;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Hata: ${e.toString()}'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   Future<void> _openAddScreen(BuildContext context) async {
@@ -204,7 +444,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       ref.invalidate(allTransactionsProvider);
       ref.invalidate(monthlySpendingProvider);
       ref.invalidate(monthlySummaryProvider);
-      // Undo snackbar
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('İşlem silindi'),
@@ -377,6 +617,43 @@ class _FilterChip extends StatelessWidget {
           GestureDetector(
             onTap: onRemove,
             child: const Icon(Icons.close, color: AppColors.accent, size: 14),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlassButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _GlassButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

@@ -1,7 +1,7 @@
 // ALTERA Gemini 2.0 Flash servis katmanı - tüm AI çağrıları burada
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 
 import '../constants/app_constants.dart';
 import '../models/transaction.dart';
@@ -62,30 +62,48 @@ class InvestmentRecommendation {
 /// final analysis = await gemini.analyzeTransaction(tx);
 /// ```
 class GeminiService {
-  final GenerativeModel _model;
+  final String _apiKey;
 
-  GeminiService._(String apiKey)
-      : _model = GenerativeModel(
-    model: 'gemini-2.0-flash',
-    apiKey: apiKey,
-    generationConfig: GenerationConfig(
-      maxOutputTokens: AppConstants.kGeminiMaxTokens,
-      temperature: 0.1, // Düşük temperature - tutarlı JSON çıktısı için
-    ),
-  );
+  GeminiService._(this._apiKey);
 
   /// flutter_secure_storage'dan API key okuyarak modeli başlatır
   static Future<GeminiService> initialize() async {
     const storage = FlutterSecureStorage();
-    final apiKey = await storage.read(key: AppConstants.kSecureKeyGeminiApiKey);
-    if (apiKey == null || apiKey.isEmpty) {
-      throw const GeminiException('Gemini API key bulunamadı. Lütfen ayarlardan API key girin.');
+    String? apiKey = await storage.read(key: AppConstants.kSecureKeyGeminiApiKey);
+    if (apiKey == null || apiKey.isEmpty || apiKey == 'AIzaSyCwhgjxfc2i3W3_-n8JYkVhYg3xcn8HbRE') {
+      apiKey = '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';
+      await storage.write(key: AppConstants.kSecureKeyGeminiApiKey, value: apiKey);
     }
     return GeminiService._(apiKey);
   }
 
   /// Test amaçlı doğrudan API key ile oluşturur
   factory GeminiService.withKey(String apiKey) => GeminiService._(apiKey);
+
+  Future<String?> _callGroq(String prompt) async {
+    final uri = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
+    final response = await http.post(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $_apiKey',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'model': 'llama-3.1-8b-instant',
+        'messages': [
+          {'role': 'user', 'content': prompt}
+        ],
+        'temperature': 0.1,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw GeminiException('API Hatası: ${response.statusCode} - ${response.body}');
+    }
+
+    final data = jsonDecode(utf8.decode(response.bodyBytes));
+    return data['choices'][0]['message']['content'];
+  }
 
   /// Tek bir işlemi analiz eder - kategori, tür ve gerekçe döndürür.
   ///
@@ -114,8 +132,7 @@ SADECE geçerli JSON döndür, başka hiçbir şey yazma:
     String? responseText;
     for (var attempt = 0; attempt < AppConstants.kGeminiMaxRetries; attempt++) {
       try {
-        final response = await _model.generateContent([Content.text(prompt)]);
-        responseText = response.text;
+        responseText = await _callGroq(prompt);
         break;
       } catch (e) {
         final errStr = e.toString();
@@ -140,11 +157,13 @@ SADECE geçerli JSON döndür, başka hiçbir şey yazma:
       final data = jsonDecode(json) as Map<String, dynamic>;
 
       return TransactionAnalysis(
-        category: TransactionCategory.values.byName(
-          data['category'] as String? ?? 'other',
+        category: TransactionCategory.values.firstWhere(
+          (e) => e.name == (data['category']?.toString().toLowerCase()),
+          orElse: () => TransactionCategory.other,
         ),
-        type: TransactionType.values.byName(
-          data['type'] as String? ?? 'need',
+        type: TransactionType.values.firstWhere(
+          (e) => e.name == (data['type']?.toString().toLowerCase()),
+          orElse: () => TransactionType.need,
         ),
         reason: data['reason'] as String? ?? '',
         durationMs: stopwatch.elapsedMilliseconds,
@@ -203,8 +222,7 @@ Not: suggested_amount = tasarrufun %80'i (${(savingsAmount * 0.8).toStringAsFixe
 ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      final responseText = response.text ?? '';
+      final responseText = await _callGroq(prompt) ?? '';
       final json = _extractJson(responseText);
       final data = jsonDecode(json) as Map<String, dynamic>;
 
@@ -242,8 +260,8 @@ Sadece öneri metnini yaz, başka hiçbir şey yazma.
 ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      return response.text?.trim() ??
+      final responseText = await _callGroq(prompt);
+      return responseText?.trim() ??
           'Bu ay bütçeni aştın. Harcamalarını gözden geçirmeyi dene.';
     } catch (_) {
       return 'Bu ay ${category.displayNameTr} bütçeni aştın. Harcamalarını gözden geçirmeyi dene.';
@@ -265,8 +283,7 @@ SADECE geçerli JSON döndür (bulamazsan null döndür):
 ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      final responseText = response.text ?? '';
+      final responseText = await _callGroq(prompt) ?? '';
       if (responseText.contains('null')) return null;
       final json = _extractJson(responseText);
       return jsonDecode(json) as Map<String, dynamic>;
@@ -302,8 +319,8 @@ Kurallar:
 ''';
 
     try {
-      final response = await _model.generateContent([Content.text(prompt)]);
-      return response.text?.trim() ?? 'Portföy analizi şu an gerçekleştirilemiyor.';
+      final responseText = await _callGroq(prompt);
+      return responseText?.trim() ?? 'Portföy analizi şu an gerçekleştirilemiyor.';
     } catch (e) {
       if (isRateLimitError(e.toString())) {
         return 'API kotası aşıldı, lütfen biraz bekleyip tekrar deneyin.';

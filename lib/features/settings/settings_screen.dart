@@ -20,7 +20,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final _apiKeyController = TextEditingController();
+  final _apiKeyController = TextEditingController(text: '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');
   final _nameController = TextEditingController();
   final _incomeController = TextEditingController();
   bool _apiKeyVisible = false;
